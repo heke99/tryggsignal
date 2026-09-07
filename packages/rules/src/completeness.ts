@@ -15,9 +15,7 @@ export interface CompletenessAssessment {
   readonly explanation: string;
 }
 
-export function assessCompleteness(
-  evaluations: readonly RuleEvaluation[],
-): CompletenessAssessment {
+export function assessCompleteness(evaluations: readonly RuleEvaluation[]): CompletenessAssessment {
   const relevant = evaluations.filter((e) => e.result !== 'NOT_APPLICABLE');
   // A CONDITIONAL rule is required once its `appliesWhen` gate holds — an
   // applicable conditional that fails makes the case incomplete, not complete.

@@ -95,7 +95,11 @@ export interface MappingVersion {
 
 export interface MappedObject {
   readonly canonical: Record<string, unknown>;
-  readonly errors: readonly { readonly field: string; readonly code: string; readonly message: string }[];
+  readonly errors: readonly {
+    readonly field: string;
+    readonly code: string;
+    readonly message: string;
+  }[];
   readonly mappingVersion: number;
 }
 

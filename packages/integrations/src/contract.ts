@@ -87,7 +87,11 @@ export interface Connector {
   updateCase?(externalId: string, input: unknown, idempotencyKey: string): Promise<WriteResult>;
   listDocuments?(caseExternalId: string, cursor: string | null): Promise<Page<ExternalDocument>>;
   getDocument?(externalId: string): Promise<ExternalDocument | null>;
-  addDocument?(caseExternalId: string, input: unknown, idempotencyKey: string): Promise<WriteResult>;
+  addDocument?(
+    caseExternalId: string,
+    input: unknown,
+    idempotencyKey: string,
+  ): Promise<WriteResult>;
   listParties?(caseExternalId: string): Promise<Page<unknown>>;
   listEvents?(cursor: string | null): Promise<Page<unknown>>;
   addMessage?(caseExternalId: string, input: unknown, idempotencyKey: string): Promise<WriteResult>;

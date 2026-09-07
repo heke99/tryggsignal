@@ -16,7 +16,10 @@ describe('predicate evaluation (masterplan 40)', () => {
   };
 
   it('evaluates comparisons and returns evidence', () => {
-    const result = evaluatePredicate({ op: 'gt', field: 'area.gross_floor_area', value: 150 }, facts);
+    const result = evaluatePredicate(
+      { op: 'gt', field: 'area.gross_floor_area', value: 150 },
+      facts,
+    );
     expect(result.satisfied).toBe(true);
     expect(result.evidence).toEqual([
       { field: 'area.gross_floor_area', observed: 180, expected: 150, satisfied: true },
@@ -34,7 +37,9 @@ describe('predicate evaluation (masterplan 40)', () => {
       satisfied: true,
       indeterminate: false,
     });
-    expect(evaluatePredicate({ op: 'exists', field: 'documents.fasadritning' }, facts)).toMatchObject({
+    expect(
+      evaluatePredicate({ op: 'exists', field: 'documents.fasadritning' }, facts),
+    ).toMatchObject({
       satisfied: true,
     });
   });

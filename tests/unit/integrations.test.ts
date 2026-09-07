@@ -41,8 +41,20 @@ describe('generic REST connector (masterplan 60/62)', () => {
       body: {
         data: {
           items: [
-            { id: '1', arendenummer: 'B-2026-1', rubrik: 'Nybyggnad', status: 'PAGAENDE', version: '7' },
-            { id: '2', arendenummer: 'B-2026-2', rubrik: 'Tillbyggnad', status: 'AVSLUTAT', version: '3' },
+            {
+              id: '1',
+              arendenummer: 'B-2026-1',
+              rubrik: 'Nybyggnad',
+              status: 'PAGAENDE',
+              version: '7',
+            },
+            {
+              id: '2',
+              arendenummer: 'B-2026-2',
+              rubrik: 'Tillbyggnad',
+              status: 'AVSLUTAT',
+              version: '3',
+            },
           ],
           next: 'cursor-2',
         },

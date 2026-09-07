@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { processBatch, type JobEnvelope, type QueueClient, type QueueMessage } from '@tryggsignal/worker';
+import {
+  processBatch,
+  type JobEnvelope,
+  type QueueClient,
+  type QueueMessage,
+} from '@tryggsignal/worker';
 
 const envelope = (overrides: Partial<JobEnvelope> = {}): JobEnvelope => ({
   jobId: 'job-1',
@@ -59,15 +64,19 @@ describe('worker batch (masterplan 44/67)', () => {
       { onError: () => {} },
     );
     expect(summary.deadLettered).toBe(1);
-    expect(queue.deadLetter).toHaveBeenCalledWith('document_processing', 3, expect.stringContaining('Exhausted'));
+    expect(queue.deadLetter).toHaveBeenCalledWith(
+      'document_processing',
+      3,
+      expect.stringContaining('Exhausted'),
+    );
   });
 
   it('dead-letters a malformed envelope without calling the handler', async () => {
-    const queue = client([
-      { msgId: 4, readCount: 1, envelope: envelope({ idempotencyKey: '' }) },
-    ]);
+    const queue = client([{ msgId: 4, readCount: 1, envelope: envelope({ idempotencyKey: '' }) }]);
     const handler = vi.fn();
-    const summary = await processBatch('document_processing', queue, handler, { onError: () => {} });
+    const summary = await processBatch('document_processing', queue, handler, {
+      onError: () => {},
+    });
     expect(summary.skipped).toBe(1);
     expect(handler).not.toHaveBeenCalled();
     expect(queue.deadLetter).toHaveBeenCalledWith('document_processing', 4, 'Invalid job envelope');

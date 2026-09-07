@@ -1,0 +1,92 @@
+# Agent final report — masterplan V3
+
+Date: 2026-09-07. Written per masterplan 146: this is what is done, what is not,
+and exactly what a human must do next.
+
+## GREEN phases
+
+P0 Discovery, P1 Project foundation, P2 Supabase foundation, P3 Organization /
+identity, P4 RBAC / ABAC / RLS, P5 Case core, P22 Completeness engine,
+P34 Brand / domain foundation, P35 Tenant resolver, P40 Domain hardening.
+
+## IN_PROGRESS
+
+P6 Property, P7 Documents, P8 Workflow / deadlines, P9 Rule engine, P10 Queues,
+P11 Search, P12 Integration framework, P13 Migration engine, P14 Source registry,
+P19 Geodata, P20 AI foundation, P21 Building-permit workspace, P23 PBL
+supervision, P24 OVK, P25 Archive, P26 ROI, P27 Edge connector, P29 Security
+hardening, P31 Backup, P32 Accessibility, P33 Pilot readiness, P36 White-label
+UI, P38 Tenant auth, P39 Provisioning.
+
+Each one has its schema and, where the masterplan calls for logic, a tested
+engine. What is missing in almost every case is the same two things: an
+authentication flow, and a running worker to execute the queued work.
+
+## RED
+
+**P30 Performance.** The load test was attempted and failed operationally: it
+filled the development project's disk and put Postgres into a crash-recovery loop
+it cannot finish. No performance measurements exist. `docs/performance.md`
+records the mistake and how the test must be run instead.
+
+## BLOCKED
+
+**B-01 — the development data plane is down.** `could not write to file
+"pg_wal/xlogtemp.NNNN": No space left on device`. Everything that needs the
+database is unverifiable until it is back.
+
+## EXTERNAL_BLOCKED
+
+EB-01 Vercel project and DNS for `tryggsignal.se`; EB-02 one Supabase project per
+municipality; EB-03 Lantmäteriet NGP/Geotorget; EB-04 Bolagsverket and Navet;
+EB-05 Digital Post and Sweden Connect; EB-06 a named pilot customer and vendor API
+access; EB-07 an AI provider decision; EB-08 a malware-scanning provider.
+
+## Security state
+
+`docs/security/security-review.md`. The authorization model is enforced in the
+database and was verified GREEN by the authorization matrix across 11 subject
+types, including both directions of the cross-authority leak test. Five findings
+are recorded; two are medium and both are blocked on features that do not exist
+yet (no auth flow, no malware scanning). The advisors last reported zero
+high/medium security findings, but that run predates the later migrations.
+
+## Migration state
+
+The migration engine has raw capture, mapping with unmapped-value reporting, and
+the reconciliation gate — all unit-tested. No golden dataset has been run,
+because no real legacy export exists.
+
+## Performance measurements
+
+None. See RED above.
+
+## Test results
+
+120 unit tests passing across 17 files. Lint, typecheck, format, build and the
+SQL guard all pass. The database authorization matrix was GREEN when last run,
+covering the case matrix; the document, storage and search policies added
+afterwards are written but unverified.
+
+## Production readiness
+
+Not production ready. The system cannot yet authenticate a user, so no
+municipality can use it. The foundations that are hardest to retrofit —
+authority boundary, RLS, provenance, audit chain, tenant and data-plane
+isolation, deterministic rules, explainable deadlines — are in place and tested.
+
+## Exact next external actions, in order
+
+1. **Increase the disk on the Supabase project `fjccdslnyyzhdjhkhcya`** (Settings
+   → Compute and Disk). That lets crash recovery finish and brings the database
+   back. Then delete the synthetic rows (`PERF-%` cases, the `Perfkommun` legal
+   entity, `perfworker@test.invalid`) and re-run
+   `tests/rls/authorization_matrix.sql` and both advisors.
+2. Create the Vercel project and point `*.tryggsignal.se` at it (EB-01), then run
+   `docs/runbooks/custom-domain-provisioning.md` for the first municipality.
+3. Provision a separate Supabase project per pilot municipality in `eu-north-1`
+   (EB-02) and record it in `platform.tenant_deployments`.
+4. Decide the identity path for the pilot (Entra ID for staff, Sweden Connect for
+   citizens) so P38 can be built — this unblocks most of the IN_PROGRESS list.
+5. Name the pilot municipality and obtain its legacy vendor's API documentation
+   (EB-06).

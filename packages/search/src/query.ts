@@ -26,7 +26,8 @@ const MAX_LIMIT = 100;
  */
 export function buildSearchQuery(request: SearchRequest): SearchBinding {
   const query = request.query.trim();
-  if (query.length === 0) throw new InvalidSearchError('An empty search would scan the whole index');
+  if (query.length === 0)
+    throw new InvalidSearchError('An empty search would scan the whole index');
   if (query.length > 200) throw new InvalidSearchError('Search query is too long');
 
   const limit = Math.min(Math.max(request.limit ?? 20, 1), MAX_LIMIT);

@@ -66,7 +66,10 @@ describe('mapping (masterplan 55/22)', () => {
   });
 
   it('reports an unmapped value instead of defaulting it', () => {
-    const unknown = captureRaw({ ...raw, rawPayload: { ...(raw.rawPayload as object), STATUS: 'Z' } });
+    const unknown = captureRaw({
+      ...raw,
+      rawPayload: { ...(raw.rawPayload as object), STATUS: 'Z' },
+    });
     const mapped = applyMapping(unknown, mapping);
     expect(mapped.errors).toEqual([
       expect.objectContaining({ code: 'UNMAPPED_VALUE', field: 'status' }),

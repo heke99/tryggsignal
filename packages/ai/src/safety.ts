@@ -32,8 +32,8 @@ export function sanitizeUntrustedContent(
   content: readonly { label: string; text: string }[],
 ): readonly SanitizedContent[] {
   return content.map((item) => {
-    const matched = INJECTION_PATTERNS.filter((pattern) => pattern.test(item.text)).map((p) =>
-      p.source,
+    const matched = INJECTION_PATTERNS.filter((pattern) => pattern.test(item.text)).map(
+      (p) => p.source,
     );
     return {
       label: item.label,
@@ -56,10 +56,7 @@ export function buildPrompt(request: AiRequest): {
 } {
   const sanitized = sanitizeUntrustedContent(request.untrustedContent);
   const fenced = sanitized
-    .map(
-      (item) =>
-        `<document label="${item.label.replace(/"/g, "'")}">\n${item.text}\n</document>`,
-    )
+    .map((item) => `<document label="${item.label.replace(/"/g, "'")}">\n${item.text}\n</document>`)
     .join('\n\n');
 
   return {

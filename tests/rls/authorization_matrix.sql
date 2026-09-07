@@ -330,3 +330,23 @@ $$;
 select 'RLS AUTHORIZATION MATRIX: GREEN' as result;
 
 rollback;
+
+-- ---------------------------------------------------------------------------
+-- Document and search matrix (masterplan 19, 36, 48)
+--
+-- NOTE: this section has NOT been executed. The development data plane was taken
+-- out of service by the aborted P30 load test (see docs/performance.md), so the
+-- document, storage and search policies added after the case matrix are
+-- UNVERIFIED. Run this file end to end and show it GREEN before calling the
+-- document engine (P7) or search (P11) verified.
+--
+-- Expected outcomes once it runs, inserted before the final `rollback`:
+--   * a caseworker sees documents on cases they can see, and none on others
+--   * an external applicant sees documents on their own case only, and never a
+--     RESTRICTED or SECRET one
+--   * an inserted document version must have ingestion_status = 'QUARANTINED'
+--   * a CLEAN or REJECTED version cannot be updated back to another status
+--   * a document version's sha256, storage path and size cannot be updated
+--   * search.entities rows for a case are invisible to a reader who cannot see
+--     the case, including via the trigram title path
+-- ---------------------------------------------------------------------------

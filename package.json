@@ -2,7 +2,7 @@
   "name": "tryggsignal",
   "private": true,
   "version": "0.1.0",
-  "description": "Tryggsignal \u2014 Kommunalt Samh\u00e4llsbyggnad OS",
+  "description": "Tryggsignal — Kommunalt Samhällsbyggnad OS",
   "packageManager": "pnpm@10.0.0",
   "engines": {
     "node": ">=20.11.0"

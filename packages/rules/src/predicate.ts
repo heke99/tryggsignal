@@ -94,14 +94,19 @@ export function evaluatePredicate(predicate: Predicate, facts: Facts): Predicate
       // branch lacked facts.
       const indeterminate =
         predicate.op === 'all'
-          ? results.some((result) => result.indeterminate) && !results.some((r) => !r.satisfied && !r.indeterminate)
+          ? results.some((result) => result.indeterminate) &&
+            !results.some((r) => !r.satisfied && !r.indeterminate)
           : !satisfied && results.some((result) => result.indeterminate);
       return { satisfied, evidence, indeterminate };
     }
 
     case 'not': {
       const inner = evaluatePredicate(predicate.of, facts);
-      return { satisfied: !inner.satisfied, evidence: inner.evidence, indeterminate: inner.indeterminate };
+      return {
+        satisfied: !inner.satisfied,
+        evidence: inner.evidence,
+        indeterminate: inner.indeterminate,
+      };
     }
 
     default:
@@ -114,7 +119,14 @@ export function evaluatePredicate(predicate: Predicate, facts: Facts): Predicate
 
   const evidenceFor = (satisfied: boolean, expected?: unknown): PredicateResult => ({
     satisfied,
-    evidence: [{ field: predicate.field, observed: value, ...(expected === undefined ? {} : { expected }), satisfied }],
+    evidence: [
+      {
+        field: predicate.field,
+        observed: value,
+        ...(expected === undefined ? {} : { expected }),
+        satisfied,
+      },
+    ],
     indeterminate: false,
   });
 

@@ -84,7 +84,10 @@ export default async function CaseWorkspacePage({
         <ul>
           {workspace.documents.map((doc) => (
             <li key={doc.id}>
-              {doc.title} <span className="meta">({doc.document_type}, v{doc.current_version})</span>
+              {doc.title}{' '}
+              <span className="meta">
+                ({doc.document_type}, v{doc.current_version})
+              </span>
             </li>
           ))}
           {workspace.documents.length === 0 && <li className="meta">Inga handlingar.</li>}

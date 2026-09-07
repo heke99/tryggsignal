@@ -108,18 +108,24 @@ export class GenericRestConnector implements Connector {
     const url = new URL(`${this.config.baseUrl}/cases`);
     if (cursor !== null) url.searchParams.set('cursor', cursor);
 
-    const response = await this.http({ method: 'GET', url: url.toString(), headers: this.headers() });
+    const response = await this.http({
+      method: 'GET',
+      url: url.toString(),
+      headers: this.headers(),
+    });
     if (response.status === 401 || response.status === 403) {
-      throw new ExternalBlockedError(this.key, `Access denied by the source system (HTTP ${response.status})`);
+      throw new ExternalBlockedError(
+        this.key,
+        `Access denied by the source system (HTTP ${response.status})`,
+      );
     }
     if (response.status >= 400) {
       throw new Error(`${this.key}: listCases failed with HTTP ${response.status}`);
     }
 
     const mapping = this.config.caseMapping;
-    const rawItems = mapping.itemsPath === undefined
-      ? response.body
-      : readPath(response.body, mapping.itemsPath);
+    const rawItems =
+      mapping.itemsPath === undefined ? response.body : readPath(response.body, mapping.itemsPath);
     const items = Array.isArray(rawItems) ? rawItems : [];
 
     return {
@@ -136,7 +142,9 @@ export class GenericRestConnector implements Connector {
             title: asString(readPath(item, mapping.title)) ?? caseNumber,
             status: asString(readPath(item, mapping.status)) ?? 'UNKNOWN',
             sourceVersion:
-              mapping.sourceVersion === undefined ? null : asString(readPath(item, mapping.sourceVersion)),
+              mapping.sourceVersion === undefined
+                ? null
+                : asString(readPath(item, mapping.sourceVersion)),
             sourceUpdatedAt:
               mapping.sourceUpdatedAt === undefined
                 ? null

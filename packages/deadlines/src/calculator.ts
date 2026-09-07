@@ -113,21 +113,22 @@ export function calculateDeadline(input: DeadlineInput): DeadlineCalculation {
  * `durationDays` is configuration, not folklore: each entry names the provision
  * it comes from, and a municipality can only change it through the rule set.
  */
-export const PBL_DEADLINES: Readonly<Record<string, { days: number; reference: string; name: string }>> =
-  {
-    bygglov_beslut: {
-      days: 70,
-      reference: 'PBL 9 kap. 27 § första stycket',
-      name: 'Beslut i lovärende',
-    },
-    bygglov_beslut_forlangt: {
-      days: 140,
-      reference: 'PBL 9 kap. 27 § första stycket (förlängd handläggningstid)',
-      name: 'Beslut i lovärende efter förlängning',
-    },
-    anmalan_startbesked: {
-      days: 28,
-      reference: 'PBF 6 kap. 7 §',
-      name: 'Startbesked efter anmälan',
-    },
-  };
+export const PBL_DEADLINES: Readonly<
+  Record<string, { days: number; reference: string; name: string }>
+> = {
+  bygglov_beslut: {
+    days: 70,
+    reference: 'PBL 9 kap. 27 § första stycket',
+    name: 'Beslut i lovärende',
+  },
+  bygglov_beslut_forlangt: {
+    days: 140,
+    reference: 'PBL 9 kap. 27 § första stycket (förlängd handläggningstid)',
+    name: 'Beslut i lovärende efter förlängning',
+  },
+  anmalan_startbesked: {
+    days: 28,
+    reference: 'PBF 6 kap. 7 §',
+    name: 'Startbesked efter anmälan',
+  },
+};

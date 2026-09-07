@@ -49,7 +49,8 @@ export function reconcile(input: ReconciliationInput): ReconciliationReport {
     );
   }
   if (input.missingIds.length > 0) failures.push(`${input.missingIds.length} missing record(s)`);
-  if (input.duplicateIds.length > 0) failures.push(`${input.duplicateIds.length} duplicate record(s)`);
+  if (input.duplicateIds.length > 0)
+    failures.push(`${input.duplicateIds.length} duplicate record(s)`);
   if (input.hashMismatchIds.length > 0) {
     failures.push(`${input.hashMismatchIds.length} document(s) with a checksum mismatch`);
   }

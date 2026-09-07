@@ -15,7 +15,11 @@ export interface QueueMessage {
 
 /** Port over PGMQ, so the loop is testable without a database. */
 export interface QueueClient {
-  read(queue: QueueName, visibilityTimeoutSeconds: number, batchSize: number): Promise<readonly QueueMessage[]>;
+  read(
+    queue: QueueName,
+    visibilityTimeoutSeconds: number,
+    batchSize: number,
+  ): Promise<readonly QueueMessage[]>;
   /** Extends the visibility timeout while a long job is still running. */
   setVisibilityTimeout(queue: QueueName, msgId: number, seconds: number): Promise<void>;
   archive(queue: QueueName, msgId: number): Promise<void>;

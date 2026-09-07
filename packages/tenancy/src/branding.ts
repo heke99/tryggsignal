@@ -25,7 +25,12 @@ const HEX = /^#[0-9a-f]{6}$/;
 
 export type BrandingProblem =
   | { readonly kind: 'INVALID_COLOR'; readonly token: string; readonly value: string }
-  | { readonly kind: 'INSUFFICIENT_CONTRAST'; readonly token: string; readonly ratio: number; readonly required: number }
+  | {
+      readonly kind: 'INSUFFICIENT_CONTRAST';
+      readonly token: string;
+      readonly ratio: number;
+      readonly required: number;
+    }
   | { readonly kind: 'UNSAFE_URL'; readonly token: string; readonly value: string }
   | { readonly kind: 'MISSING'; readonly token: string };
 
@@ -51,7 +56,7 @@ export function contrastRatio(foreground: string, background: string): number {
   const a = luminance(foreground);
   const b = luminance(background);
   const [lighter, darker] = a > b ? [a, b] : [b, a];
-  return Number((((lighter + 0.05) / (darker + 0.05))).toFixed(2));
+  return Number(((lighter + 0.05) / (darker + 0.05)).toFixed(2));
 }
 
 /** Only http(s) links are accepted; a javascript: URL is an injection vector. */
@@ -104,7 +109,12 @@ export function validateBranding(tokens: Partial<BrandingTokens>): BrandingValid
     const onPrimary = contrastRatio(WHITE, primary);
     contrast['whiteOnPrimary'] = onPrimary;
     if (onPrimary < 4.5) {
-      problems.push({ kind: 'INSUFFICIENT_CONTRAST', token: 'primaryColor', ratio: onPrimary, required: 4.5 });
+      problems.push({
+        kind: 'INSUFFICIENT_CONTRAST',
+        token: 'primaryColor',
+        ratio: onPrimary,
+        required: 4.5,
+      });
     }
 
     const primaryOnSurface = contrastRatio(primary, WHITE);

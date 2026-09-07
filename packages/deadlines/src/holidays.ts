@@ -22,8 +22,7 @@ function easterSunday(year: number): Date {
   return new Date(Date.UTC(year, month - 1, day));
 }
 
-const addDays = (date: Date, days: number): Date =>
-  new Date(date.getTime() + days * 86_400_000);
+const addDays = (date: Date, days: number): Date => new Date(date.getTime() + days * 86_400_000);
 
 const iso = (date: Date): string => date.toISOString().slice(0, 10);
 
@@ -68,7 +67,10 @@ export function swedishHolidays(year: number): ReadonlySet<string> {
   ]);
 }
 
-export function isNonWorkingDay(date: Date, holidays = swedishHolidays(date.getUTCFullYear())): boolean {
+export function isNonWorkingDay(
+  date: Date,
+  holidays = swedishHolidays(date.getUTCFullYear()),
+): boolean {
   const weekday = date.getUTCDay();
   return weekday === 0 || weekday === 6 || holidays.has(iso(date));
 }

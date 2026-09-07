@@ -122,7 +122,12 @@ export interface CaseWorkspace {
   readonly available: boolean;
   readonly reason?: string;
   readonly header: CaseHeader | null;
-  readonly documents: readonly { id: string; title: string; document_type: string; current_version: number }[];
+  readonly documents: readonly {
+    id: string;
+    title: string;
+    document_type: string;
+    current_version: number;
+  }[];
   readonly deadlines: readonly { id: string; name: string; due_at: string; status: string }[];
   readonly history: readonly { id: number; to_status: string; changed_at: string }[];
 }
@@ -143,7 +148,8 @@ export async function loadCaseWorkspace(
   try {
     session = await tenantClient(context);
   } catch (error) {
-    if (error instanceof TenantDataPlaneUnavailableError) return { ...empty, reason: error.message };
+    if (error instanceof TenantDataPlaneUnavailableError)
+      return { ...empty, reason: error.message };
     throw error;
   }
   if (!session.authenticated) {
@@ -162,7 +168,11 @@ export async function loadCaseWorkspace(
   // An unreadable case is indistinguishable from a missing one by design: RLS
   // filters it out, and the UI must not confirm that it exists.
   if (header === null) {
-    return { ...empty, available: true, reason: 'Ärendet finns inte eller är inte tillgängligt för dig.' };
+    return {
+      ...empty,
+      available: true,
+      reason: 'Ärendet finns inte eller är inte tillgängligt för dig.',
+    };
   }
 
   const [documents, deadlines, history] = await Promise.all([
