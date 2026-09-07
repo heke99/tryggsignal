@@ -1,10 +1,42 @@
 {
   "name": "tryggsignal",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Tryggsignal — Kommunalt Samhällsbyggnad OS",
   "packageManager": "pnpm@10.0.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
   "scripts": {
-    "masterplan:status": "node -e \"console.log('See docs/master-plan-status.md')\""
+    "lint": "eslint .",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "typecheck": "tsc -b tsconfig.build.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "pnpm -r --filter \"./apps/*\" build",
+    "db:status": "node scripts/db-status.mjs",
+    "verify": "pnpm lint && pnpm typecheck && pnpm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.17.0",
+    "@tryggsignal/authorization": "workspace:*",
+    "@tryggsignal/config": "workspace:*",
+    "@tryggsignal/database": "workspace:*",
+    "@tryggsignal/domain": "workspace:*",
+    "@tryggsignal/observability": "workspace:*",
+    "@tryggsignal/tenancy": "workspace:*",
+    "@tryggsignal/worker": "workspace:*",
+    "@types/node": "22.10.5",
+    "eslint": "9.17.0",
+    "prettier": "3.4.2",
+    "typescript": "5.7.3",
+    "typescript-eslint": "8.20.0",
+    "vitest": "2.1.8"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }

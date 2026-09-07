@@ -1,47 +1,65 @@
 # Master Plan Status
 
-> Initial repository state. Update only after the corresponding gate has actually passed.
+Last updated: 2026-09-07.
 
-| Phase | Status | Notes |
-|---|---|---|
-| P0 Discovery & Baseline | NOT_STARTED | |
-| P1 Project Foundation | NOT_STARTED | |
-| P2 Supabase Foundation | NOT_STARTED | |
-| P3 Organization / Identity | NOT_STARTED | |
-| P4 RBAC / ABAC / RLS | NOT_STARTED | |
-| P5 Case Core | NOT_STARTED | |
-| P6 Property Core | NOT_STARTED | |
-| P7 Document Engine | NOT_STARTED | |
-| P8 Workflow / Deadlines | NOT_STARTED | |
-| P9 Rule Engine | NOT_STARTED | |
-| P10 Queues / Worker / Cron | NOT_STARTED | |
-| P11 Search | NOT_STARTED | |
-| P12 Generic Integration Framework | NOT_STARTED | |
-| P13 Migration Engine | NOT_STARTED | |
-| P14 National Source Registry | NOT_STARTED | |
-| P15 Lantmäteriet | NOT_STARTED | |
-| P16 Boverket | NOT_STARTED | |
-| P17 Bolagsverket / Navet | NOT_STARTED | |
-| P18 Digital Post / Identity | NOT_STARTED | |
-| P19 Geodata Enrichment | NOT_STARTED | |
-| P20 AI Foundation | NOT_STARTED | |
-| P21 Building Permit Workspace | NOT_STARTED | |
-| P22 Completeness Engine | NOT_STARTED | |
-| P23 PBL Supervision | NOT_STARTED | |
-| P24 OVK | NOT_STARTED | |
-| P25 Archive / FGS | NOT_STARTED | |
-| P26 ROI / Analytics | NOT_STARTED | |
-| P27 Legacy Edge Connector | NOT_STARTED | |
-| P28 First Real Vendor Connector | NOT_STARTED | |
-| P29 Security Hardening | NOT_STARTED | |
-| P30 Performance | NOT_STARTED | |
-| P31 Backup / Recovery | NOT_STARTED | |
-| P32 Accessibility | NOT_STARTED | |
-| P33 Pilot Readiness | NOT_STARTED | |
-| P34 Brand / Domain Foundation | NOT_STARTED | |
-| P35 Tenant Resolver | NOT_STARTED | |
-| P36 White-label UI | NOT_STARTED | |
-| P37 Custom Domains | NOT_STARTED | |
-| P38 Tenant Auth / Session Isolation | NOT_STARTED | |
-| P39 Tenant Provisioning | NOT_STARTED | |
-| P40 Domain / White-label Hardening | NOT_STARTED | |
+Status may only be one of `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `EXTERNAL_BLOCKED`, `RED`, `GREEN`.
+A phase becomes `GREEN` only when its gate has actually passed. See `docs/blockers.md` for
+external dependencies and `docs/baseline-report.md` for the P0 baseline.
+
+## Verified gates (2026-09-07)
+
+| Gate                                                                    | Result                                                                                                                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm lint`                                                             | GREEN                                                                                                                                                |
+| `pnpm typecheck`                                                        | GREEN                                                                                                                                                |
+| `pnpm test` (38 tests)                                                  | GREEN                                                                                                                                                |
+| `pnpm build` (both Next.js apps)                                        | GREEN                                                                                                                                                |
+| `tests/rls/authorization_matrix.sql` against the development data plane | GREEN                                                                                                                                                |
+| Supabase security advisor                                               | 0 high/medium; 8 INFO `rls_enabled_no_policy` on `platform.*`, intentional (control-plane tables are server-side only, RLS on with no client policy) |
+| Supabase performance advisor                                            | 0 WARN after merging duplicate permissive policies; remaining findings are INFO on an empty database                                                 |
+
+## Phases
+
+| Phase                               | Status           | Notes                                                                                                                                                                                                                |
+| ----------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Discovery & Baseline             | GREEN            | `docs/baseline-report.md`; repo and Supabase project were empty, nothing to migrate away                                                                                                                             |
+| P1 Project Foundation               | GREEN            | pnpm workspace, TypeScript strict (+`noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), ESLint, Prettier, Vitest, CI workflow, SQL guard, env validation                                                      |
+| P2 Supabase Foundation              | GREEN            | 22 schemas, extensions (`pgcrypto`, `pg_trgm`, `postgis`, `pgmq`, `pg_cron`), default-deny grants, migrations committed and applied                                                                                  |
+| P3 Organization / Identity          | GREEN            | legal entities → authorities → departments → units → teams, `identity.users`, memberships, RLS                                                                                                                       |
+| P4 RBAC / ABAC / RLS                | GREEN            | 15 permissions, 18 roles, scoped assignments, `authz.can()`, policies, audit chain, break glass; authorization matrix GREEN                                                                                          |
+| P5 Case Core                        | GREEN            | canonical `core.cases` + history/assignments/parties/classification, indexes per masterplan 50, RLS via `can()`                                                                                                      |
+| P6 Property Core                    | IN_PROGRESS      | `property.properties` with PostGIS geometry, GiST + trigram indexes and provenance columns exist; identifiers, addresses, buildings, spatial features and relations remain                                           |
+| P7 Document Engine                  | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P8 Workflow / Deadlines             | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P9 Rule Engine                      | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P10 Queues / Worker / Cron          | IN_PROGRESS      | PGMQ and pg_cron enabled; queue catalog, job envelope and retry/dead-letter policy implemented and tested; the polling worker process is not built                                                                   |
+| P11 Search                          | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P12 Generic Integration Framework   | NOT_STARTED      | contract documented in `docs/integrations/connector-contract.md`                                                                                                                                                     |
+| P13 Migration Engine                | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P14 National Source Registry        | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P15 Lantmäteriet                    | EXTERNAL_BLOCKED | Geotorget/NGP access per municipality required                                                                                                                                                                       |
+| P16 Boverket                        | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P17 Bolagsverket / Navet            | EXTERNAL_BLOCKED | agreement and municipal authorization required                                                                                                                                                                       |
+| P18 Digital Post / Identity         | EXTERNAL_BLOCKED | Digital Post and Sweden Connect onboarding required                                                                                                                                                                  |
+| P19 Geodata Enrichment              | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P20 AI Foundation                   | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P21 Building Permit Workspace       | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P22 Completeness Engine             | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P23 PBL Supervision                 | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P24 OVK                             | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P25 Archive / FGS                   | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P26 ROI / Analytics                 | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P27 Legacy Edge Connector           | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P28 First Real Vendor Connector     | EXTERNAL_BLOCKED | requires a named pilot customer and vendor API access                                                                                                                                                                |
+| P29 Security Hardening              | IN_PROGRESS      | authorization matrix, advisors, SQL guard and secret rules in place; OWASP/upload/SSRF/prompt-injection testing pending the features they target                                                                     |
+| P30 Performance                     | NOT_STARTED      | SLOs recorded; synthetic load not generated                                                                                                                                                                          |
+| P31 Backup / Recovery               | IN_PROGRESS      | Storage restore runbook written; automated reconciliation not implemented                                                                                                                                            |
+| P32 Accessibility                   | NOT_STARTED      |                                                                                                                                                                                                                      |
+| P33 Pilot Readiness                 | IN_PROGRESS      | architecture, security, ADRs and runbooks started; DPIA and procurement package pending                                                                                                                              |
+| P34 Brand / Domain Foundation       | GREEN            | `platform.tenants`, `tenant_domains`, `tenant_branding`, `tenant_deployments`, `tenant_provisioning_runs`, `domain_events`, `reserved_subdomains`, `domain_release_history` with activation and contrast constraints |
+| P35 Tenant Resolver                 | GREEN            | `TenantResolver` + hostname normalization + reserved hosts + `proxy.ts`, 33 unit tests including negative host cases                                                                                                 |
+| P36 White-label UI                  | IN_PROGRESS      | design-token shell and branding model in place; branding editor, preview, publish and rollback not built                                                                                                             |
+| P37 Custom Domains                  | EXTERNAL_BLOCKED | data model, constraints and runbook are done; activation needs a real Vercel project, DNS control and TLS issuance                                                                                                   |
+| P38 Tenant Auth / Session Isolation | IN_PROGRESS      | host-bound cookie naming and per-tenant auth reference implemented; the login flow itself is not built                                                                                                               |
+| P39 Tenant Provisioning             | IN_PROGRESS      | provisioning state machine and dev seed exist; the automated workflow is not built                                                                                                                                   |
+| P40 Domain / White-label Hardening  | NOT_STARTED      | security headers and CSP shipped; the full domain/tenant test matrix (masterplan 201–204) is pending                                                                                                                 |

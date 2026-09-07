@@ -1,0 +1,9 @@
+node_modules
+.next
+dist
+pnpm-lock.yaml
+docs/masterplan-v3
+docs/MASTERPLAN_V3.md
+.agents
+AGENTS.md
+skills-lock.json
