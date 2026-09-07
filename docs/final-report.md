@@ -6,12 +6,12 @@ and exactly what a human must do next.
 ## GREEN phases
 
 P0 Discovery, P1 Project foundation, P2 Supabase foundation, P3 Organization /
-identity, P4 RBAC / ABAC / RLS, P5 Case core, P22 Completeness engine,
-P34 Brand / domain foundation, P35 Tenant resolver, P40 Domain hardening.
+identity, P4 RBAC / ABAC / RLS, P5 Case core, P6 Property core, P22 Completeness
+engine, P34 Brand / domain foundation, P35 Tenant resolver, P40 Domain hardening.
 
 ## IN_PROGRESS
 
-P6 Property, P7 Documents, P8 Workflow / deadlines, P9 Rule engine, P10 Queues,
+P7 Documents, P8 Workflow / deadlines, P9 Rule engine, P10 Queues,
 P11 Search, P12 Integration framework, P13 Migration engine, P14 Source registry,
 P19 Geodata, P20 AI foundation, P21 Building-permit workspace, P23 PBL
 supervision, P24 OVK, P25 Archive, P26 ROI, P27 Edge connector, P29 Security
@@ -24,16 +24,21 @@ authentication flow, and a running worker to execute the queued work.
 
 ## RED
 
-**P30 Performance.** The load test was attempted and failed operationally: it
-filled the development project's disk and put Postgres into a crash-recovery loop
-it cannot finish. No performance measurements exist. `docs/performance.md`
-records the mistake and how the test must be run instead.
+None outstanding.
 
-## BLOCKED
+## What the load test cost, and what it bought
 
-**B-01 — the development data plane is down.** `could not write to file
-"pg_wal/xlogtemp.NNNN": No space left on device`. Everything that needs the
-database is unverifiable until it is back.
+The first attempt filled the development project's disk and put Postgres into a
+crash-recovery loop; the platform expanded the volume and it recovered. That was
+a mistake in how the test was run, and `docs/performance.md` says so and how to
+run it properly.
+
+It also did its job. It found two real defects that no unit test would have
+caught: `cases_select` evaluated `authz.can()` per row and timed out at 55 s on
+120 000 cases, and the document policies could only ever match an
+AUTHORITY-scoped grant, so a department-scoped caseworker could neither see nor
+upload documents on their own case. Both are fixed, and the authorization matrix
+now covers documents, search and uploads so neither can regress.
 
 ## EXTERNAL_BLOCKED
 
@@ -59,14 +64,19 @@ because no real legacy export exists.
 
 ## Performance measurements
 
-None. See RED above.
+At 120 000 cases, under `role authenticated` with RLS active: deadline queue
+6.3 ms, unassigned queue 427 ms (was a 55 s timeout), case lookup 2.5 ms,
+paginated work list 7.6 ms, my-cases 2.8 ms. All inside the < 500 ms read SLO.
+Documents, search, mutations and concurrency are unmeasured.
 
 ## Test results
 
 120 unit tests passing across 17 files. Lint, typecheck, format, build and the
-SQL guard all pass. The database authorization matrix was GREEN when last run,
-covering the case matrix; the document, storage and search policies added
-afterwards are written but unverified.
+SQL guard all pass. `tests/rls/authorization_matrix.sql` is GREEN across 11
+subject types for cases, documents and search, plus both cross-authority
+directions, case CRUD, quarantine enforcement, applicant uploads, version
+immutability and the audit hash chain. Both Supabase advisors report zero
+ERROR and zero WARN.
 
 ## Production readiness
 

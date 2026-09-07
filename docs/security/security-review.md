@@ -39,6 +39,14 @@ review record; each finding is either fixed or listed with its status.
 | SEC-04 | Low      | Rate limiting (masterplan 84) is not implemented; it belongs with the auth and upload endpoints that do not exist yet.                                                                           | Open — P38/P7 follow-up                  |
 | SEC-05 | Low      | `TRUST_FORWARDED_HOST` is a deployment-level switch. It is off by default and documented, but a misconfiguration would let a proxy spoof the host.                                               | Accepted with documentation              |
 
+## Verified by the extended matrix
+
+`tests/rls/authorization_matrix.sql` is GREEN across eleven subject types for
+cases, documents and the search index, both directions of the cross-authority
+leak test, case create/update/delete, quarantine enforcement, an applicant's
+upload to their own case, that same applicant being refused on a secrecy-classified
+document, document-version immutability, and the audit hash chain.
+
 ## Not yet testable
 
 OWASP-style testing of authenticated endpoints, IDOR/BOLA against a live API,
