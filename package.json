@@ -2,7 +2,7 @@
   "name": "tryggsignal",
   "private": true,
   "version": "0.1.0",
-  "description": "Tryggsignal — Kommunalt Samhällsbyggnad OS",
+  "description": "Tryggsignal \u2014 Kommunalt Samh\u00e4llsbyggnad OS",
   "packageManager": "pnpm@10.0.0",
   "engines": {
     "node": ">=20.11.0"
@@ -20,11 +20,17 @@
   },
   "devDependencies": {
     "@eslint/js": "9.17.0",
+    "@tryggsignal/ai": "workspace:*",
     "@tryggsignal/authorization": "workspace:*",
     "@tryggsignal/config": "workspace:*",
     "@tryggsignal/database": "workspace:*",
+    "@tryggsignal/deadlines": "workspace:*",
     "@tryggsignal/domain": "workspace:*",
+    "@tryggsignal/integrations": "workspace:*",
+    "@tryggsignal/migration-engine": "workspace:*",
     "@tryggsignal/observability": "workspace:*",
+    "@tryggsignal/rules": "workspace:*",
+    "@tryggsignal/search": "workspace:*",
     "@tryggsignal/tenancy": "workspace:*",
     "@tryggsignal/worker": "workspace:*",
     "@types/node": "22.10.5",

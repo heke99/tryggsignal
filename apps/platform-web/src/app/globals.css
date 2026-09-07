@@ -61,3 +61,66 @@ a {
   font-size: 0.875rem;
   opacity: 0.8;
 }
+
+/* Masterplan 97: accessible by construction — visible focus, real tables,
+   definition lists that read correctly in a screen reader. */
+:focus-visible {
+  outline: 3px solid var(--ts-accent);
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+
+.skip-link:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 10;
+  background: var(--ts-surface);
+  padding: 0.5rem 0.75rem;
+  border: 2px solid var(--ts-primary);
+  border-radius: 0.5rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--ts-border);
+}
+
+caption {
+  text-align: left;
+  padding-bottom: 0.5rem;
+}
+
+dl > div {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.15rem 0;
+}
+
+dt {
+  font-weight: 600;
+  min-width: 12rem;
+}
+
+dd {
+  margin: 0;
+}
+
+ul.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}

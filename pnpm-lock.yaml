@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: 9.17.0
         version: 9.17.0
+      '@tryggsignal/ai':
+        specifier: workspace:*
+        version: link:packages/ai
       '@tryggsignal/authorization':
         specifier: workspace:*
         version: link:packages/authorization
@@ -20,12 +23,27 @@ importers:
       '@tryggsignal/database':
         specifier: workspace:*
         version: link:packages/database
+      '@tryggsignal/deadlines':
+        specifier: workspace:*
+        version: link:packages/deadlines
       '@tryggsignal/domain':
         specifier: workspace:*
         version: link:packages/domain
+      '@tryggsignal/integrations':
+        specifier: workspace:*
+        version: link:packages/integrations
+      '@tryggsignal/migration-engine':
+        specifier: workspace:*
+        version: link:packages/migration-engine
       '@tryggsignal/observability':
         specifier: workspace:*
         version: link:packages/observability
+      '@tryggsignal/rules':
+        specifier: workspace:*
+        version: link:packages/rules
+      '@tryggsignal/search':
+        specifier: workspace:*
+        version: link:packages/search
       '@tryggsignal/tenancy':
         specifier: workspace:*
         version: link:packages/tenancy
@@ -116,6 +134,12 @@ importers:
         specifier: 5.7.3
         version: 5.7.3
 
+  packages/ai:
+    dependencies:
+      '@tryggsignal/domain':
+        specifier: workspace:*
+        version: link:../domain
+
   packages/authorization:
     dependencies:
       '@tryggsignal/domain':
@@ -136,9 +160,39 @@ importers:
         specifier: workspace:*
         version: link:../tenancy
 
+  packages/deadlines:
+    dependencies:
+      '@tryggsignal/domain':
+        specifier: workspace:*
+        version: link:../domain
+
   packages/domain: {}
 
+  packages/integrations:
+    dependencies:
+      '@tryggsignal/domain':
+        specifier: workspace:*
+        version: link:../domain
+
+  packages/migration-engine:
+    dependencies:
+      '@tryggsignal/domain':
+        specifier: workspace:*
+        version: link:../domain
+
   packages/observability: {}
+
+  packages/rules:
+    dependencies:
+      '@tryggsignal/domain':
+        specifier: workspace:*
+        version: link:../domain
+
+  packages/search:
+    dependencies:
+      '@tryggsignal/domain':
+        specifier: workspace:*
+        version: link:../domain
 
   packages/tenancy:
     dependencies:
