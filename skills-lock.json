@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "project": "tryggsignal",
+  "skillRoot": ".agents/skills",
+  "official": [
+    {
+      "name": "supabase",
+      "source": "skills://plugins/supabase/supabase/skill.md"
+    },
+    {
+      "name": "supabase-postgres-best-practices",
+      "source": "skills://plugins/supabase/supabase-postgres-best-practices/skill.md"
+    },
+    {
+      "name": "nextjs",
+      "source": "skills://plugins/vercel/nextjs/skill.md"
+    },
+    {
+      "name": "deployments-cicd",
+      "source": "skills://plugins/vercel/deployments-cicd/skill.md"
+    },
+    {
+      "name": "vercel-api",
+      "source": "skills://plugins/vercel/vercel-api/skill.md"
+    },
+    {
+      "name": "env-vars",
+      "source": "skills://plugins/vercel/env-vars/skill.md"
+    },
+    {
+      "name": "observability",
+      "source": "skills://plugins/vercel/observability/skill.md"
+    },
+    {
+      "name": "vercel-firewall",
+      "source": "skills://plugins/vercel/vercel-firewall/skill.md"
+    },
+    {
+      "name": "verification",
+      "source": "skills://plugins/vercel/verification/skill.md"
+    },
+    {
+      "name": "agent-browser-verify",
+      "source": "skills://plugins/vercel/agent-browser-verify/skill.md"
+    },
+    {
+      "name": "react-best-practices",
+      "source": "skills://plugins/vercel/react-best-practices/skill.md"
+    },
+    {
+      "name": "shadcn",
+      "source": "skills://plugins/vercel/shadcn/skill.md"
+    }
+  ],
+  "projectSkills": [
+    "tryggsignal-masterplan",
+    "tryggsignal-architecture",
+    "tryggsignal-security",
+    "tryggsignal-database",
+    "tryggsignal-integration",
+    "tryggsignal-migration",
+    "tryggsignal-pbl",
+    "tryggsignal-whitelabel",
+    "tryggsignal-e2e",
+    "tryggsignal-performance"
+  ]
+}

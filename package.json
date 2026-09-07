@@ -1,0 +1,10 @@
+{
+  "name": "tryggsignal",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Tryggsignal — Kommunalt Samhällsbyggnad OS",
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "masterplan:status": "node -e \"console.log('See docs/master-plan-status.md')\""
+  }
+}
