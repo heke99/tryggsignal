@@ -7,3 +7,5 @@ docs/MASTERPLAN_V3.md
 .agents
 AGENTS.md
 skills-lock.json
+next-env.d.ts
+.next
