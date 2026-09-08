@@ -162,6 +162,40 @@ create policy documents_select on documents.documents
     end
   );
 
+drop policy if exists document_versions_select on documents.document_versions;
+create policy document_versions_select on documents.document_versions
+  for select to authenticated
+  using (
+    exists (
+      select 1
+      from documents.documents d
+      where d.id = document_versions.document_id
+        and (
+          not authz.is_external_user()
+          or document_versions.ingestion_status = 'CLEAN'
+          or d.created_by = (select authz.current_user_id())
+        )
+    )
+  );
+
+drop policy if exists document_classifications_select on documents.document_classifications;
+create policy document_classifications_select on documents.document_classifications
+  for select to authenticated
+  using (
+    not authz.is_external_user()
+    and exists (
+      select 1 from documents.documents d where d.id = document_classifications.document_id
+    )
+  );
+
+drop policy if exists document_relations_select on documents.document_relations;
+create policy document_relations_select on documents.document_relations
+  for select to authenticated
+  using (
+    not authz.is_external_user()
+    and authority_id in (select authz.assigned_authority_ids())
+  );
+
 create or replace function documents.set_portal_visibility_for_user(
   p_document_id uuid,
   p_visible boolean
