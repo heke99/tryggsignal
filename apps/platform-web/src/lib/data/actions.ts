@@ -234,7 +234,6 @@ export async function closeCaseAction(formData: FormData): Promise<void> {
   redirect(`${detailPath(caseId)}?ok=closed`);
 }
 
-
 /** Phase G2: add a party through the parent case authorization boundary. */
 export async function addCasePartyAction(formData: FormData): Promise<void> {
   const caseId = safeCaseId(formData);
