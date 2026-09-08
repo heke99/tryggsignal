@@ -35,21 +35,32 @@ function uuid(formData: FormData, key: string): string | null {
 }
 
 function tokensFromForm(formData: FormData): BrandingTokens {
+  const shortName = optional(formData, 'shortName', 60);
+  const secondaryColor = color(formData, 'secondaryColor');
+  const accentColor = color(formData, 'accentColor');
+  const surfaceVariant = color(formData, 'surfaceVariant');
+  const supportEmail = optional(formData, 'supportEmail', 254);
+  const privacyUrl = optional(formData, 'privacyUrl', 500);
+  const accessibilityStatementUrl = optional(formData, 'accessibilityStatementUrl', 500);
+  const termsUrl = optional(formData, 'termsUrl', 500);
+  const loginHeading = optional(formData, 'loginHeading', 160);
+  const loginSubheading = optional(formData, 'loginSubheading', 280);
+
   return {
     displayName: value(formData, 'displayName', 120),
-    shortName: optional(formData, 'shortName', 60),
     primaryColor: color(formData, 'primaryColor') ?? '',
-    secondaryColor: color(formData, 'secondaryColor'),
-    accentColor: color(formData, 'accentColor'),
-    surfaceVariant: color(formData, 'surfaceVariant'),
     locale: value(formData, 'locale', 16),
     showTryggsignalBranding: formData.get('showTryggsignalBranding') === 'on',
-    supportEmail: optional(formData, 'supportEmail', 254),
-    privacyUrl: optional(formData, 'privacyUrl', 500),
-    accessibilityStatementUrl: optional(formData, 'accessibilityStatementUrl', 500),
-    termsUrl: optional(formData, 'termsUrl', 500),
-    loginHeading: optional(formData, 'loginHeading', 160),
-    loginSubheading: optional(formData, 'loginSubheading', 280),
+    ...(shortName === undefined ? {} : { shortName }),
+    ...(secondaryColor === undefined ? {} : { secondaryColor }),
+    ...(accentColor === undefined ? {} : { accentColor }),
+    ...(surfaceVariant === undefined ? {} : { surfaceVariant }),
+    ...(supportEmail === undefined ? {} : { supportEmail }),
+    ...(privacyUrl === undefined ? {} : { privacyUrl }),
+    ...(accessibilityStatementUrl === undefined ? {} : { accessibilityStatementUrl }),
+    ...(termsUrl === undefined ? {} : { termsUrl }),
+    ...(loginHeading === undefined ? {} : { loginHeading }),
+    ...(loginSubheading === undefined ? {} : { loginSubheading }),
   };
 }
 
