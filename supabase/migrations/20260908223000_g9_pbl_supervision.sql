@@ -349,8 +349,11 @@ begin
     raise exception 'Inspection property is unavailable' using errcode = 'no_data_found';
   end if;
   if p_building_id is not null and not exists (
-    select 1 from property.buildings b
+    select 1
+    from property.buildings b
+    join core.case_properties cp on cp.property_id = b.property_id
     where b.id = p_building_id
+      and cp.case_id = v_case.id
       and (p_property_id is null or b.property_id = p_property_id)
   ) then
     raise exception 'Inspection building is unavailable' using errcode = 'no_data_found';
