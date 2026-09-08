@@ -183,8 +183,8 @@ describe('G4 file signature detection', () => {
   it('recognizes core municipal document containers', () => {
     expect(detectMimeType(pdfBytes())).toBe('application/pdf');
     expect(detectMimeType(Uint8Array.from([0x50, 0x4b, 0x03, 0x04]))).toBe('application/zip');
-    expect(
-      detectMimeType(Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])),
-    ).toBe('application/x-ole-storage');
+    expect(detectMimeType(Uint8Array.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))).toBe(
+      'application/x-ole-storage',
+    );
   });
 });

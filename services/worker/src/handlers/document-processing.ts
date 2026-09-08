@@ -36,8 +36,7 @@ interface Inspection {
   readonly detectedMimeType: string;
 }
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 let runtimeDependencies: DocumentProcessingDependencies | null = null;
 
@@ -69,13 +68,7 @@ function mostlyText(bytes: Uint8Array): boolean {
   let printable = 0;
   const sample = bytes.subarray(0, Math.min(bytes.length, 4096));
   for (const byte of sample) {
-    if (
-      byte === 9 ||
-      byte === 10 ||
-      byte === 13 ||
-      (byte >= 32 && byte <= 126) ||
-      byte >= 160
-    ) {
+    if (byte === 9 || byte === 10 || byte === 13 || (byte >= 32 && byte <= 126) || byte >= 160) {
       printable += 1;
     }
   }
@@ -219,10 +212,7 @@ export async function processDocument(
   const target = rows[0];
   if (target === undefined) return;
 
-  if (
-    envelope.authorityContext !== null &&
-    envelope.authorityContext !== target.authority_id
-  ) {
+  if (envelope.authorityContext !== null && envelope.authorityContext !== target.authority_id) {
     await complete(sql, target, 'REJECTED', {
       reason: 'Queue authority context did not match the document authority',
     });
@@ -237,10 +227,7 @@ export async function processDocument(
       target.storage_path,
     );
 
-    if (
-      download.contentLength !== null &&
-      download.contentLength !== Number(target.size_bytes)
-    ) {
+    if (download.contentLength !== null && download.contentLength !== Number(target.size_bytes)) {
       await complete(sql, target, 'REJECTED', {
         reason: 'Storage Content-Length did not match prepared document size',
       });

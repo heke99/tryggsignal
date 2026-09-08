@@ -133,7 +133,10 @@ export class ClamAvScanner implements MalwareScanner {
           for await (const value of stream) {
             const buffer = Buffer.from(value);
             for (let offset = 0; offset < buffer.length; offset += this.maxChunkBytes) {
-              const part = buffer.subarray(offset, Math.min(offset + this.maxChunkBytes, buffer.length));
+              const part = buffer.subarray(
+                offset,
+                Math.min(offset + this.maxChunkBytes, buffer.length),
+              );
               const length = Buffer.allocUnsafe(4);
               length.writeUInt32BE(part.length, 0);
               socket.write(length);

@@ -609,10 +609,7 @@ export async function loadCaseWorkspace(
   const documentsWithVersions: CaseDocument[] = documentRows.map((document) => ({
     ...document,
     versions: versionRows
-      .filter(
-        (version) =>
-          (version as { document_id: string }).document_id === document.id,
-      )
+      .filter((version) => (version as { document_id: string }).document_id === document.id)
       .map((version) => {
         const row = version as CaseDocumentVersion & { document_id: string };
         return {

@@ -51,8 +51,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   'property-primary': 'Primär fastighet kunde inte ändras.',
   'property-register':
     'Den lokala fastigheten kunde inte registreras. Kontrollera beteckning, adress och behörighet.',
-  'document-confirm':
-    'Filen finns inte i Storage eller kunde inte köas för säkerhetskontroll.',
+  'document-confirm': 'Filen finns inte i Storage eller kunde inte köas för säkerhetskontroll.',
   'document-metadata':
     'Dokumentets klassificering kunde inte uppdateras. Kontrollera behörighet och värden.',
 };
@@ -684,8 +683,8 @@ export default async function CaseWorkspacePage({
           <div>
             <h2 id="h-documents">Handlingar ({workspace.documents.length})</h2>
             <p className="meta">
-              Filer går direkt till privat quarantine. De blir inte nedladdningsbara förrän
-              hash, storlek, filsignatur och malwarekontroll har passerat.
+              Filer går direkt till privat quarantine. De blir inte nedladdningsbara förrän hash,
+              storlek, filsignatur och malwarekontroll har passerat.
             </p>
           </div>
         </div>
@@ -807,9 +806,7 @@ export default async function CaseWorkspacePage({
                         {version.scanner_provider !== null && (
                           <p className="meta">
                             Scanner: {version.scanner_provider}
-                            {version.scanner_version === null
-                              ? ''
-                              : ` ${version.scanner_version}`}
+                            {version.scanner_version === null ? '' : ` ${version.scanner_version}`}
                             {version.signature_version === null
                               ? ''
                               : ` · signatur ${version.signature_version}`}
@@ -839,11 +836,7 @@ export default async function CaseWorkspacePage({
                           version.upload_confirmed_at === null && (
                             <form action={retryDocumentConfirmationAction}>
                               <input type="hidden" name="caseId" value={header.id} />
-                              <input
-                                type="hidden"
-                                name="documentVersionId"
-                                value={version.id}
-                              />
+                              <input type="hidden" name="documentVersionId" value={version.id} />
                               <button type="submit" className="button-secondary">
                                 Bekräfta uppladdning igen
                               </button>
@@ -852,7 +845,9 @@ export default async function CaseWorkspacePage({
                       </div>
                     </li>
                   ))}
-                  {doc.versions.length === 0 && <li className="meta">Ingen filversion registrerad.</li>}
+                  {doc.versions.length === 0 && (
+                    <li className="meta">Ingen filversion registrerad.</li>
+                  )}
                 </ol>
 
                 {latest?.ingestion_status !== 'REJECTED' && (

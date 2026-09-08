@@ -4,9 +4,7 @@ import type { MalwareScanner } from './malware-scanner';
 
 export type { MalwareScanner, MalwareScanResult } from './malware-scanner';
 
-export function scannerFromEnvironment(
-  env: NodeJS.ProcessEnv = process.env,
-): MalwareScanner {
+export function scannerFromEnvironment(env: NodeJS.ProcessEnv = process.env): MalwareScanner {
   const provider = (env['MALWARE_SCANNER'] ?? '').trim().toLowerCase();
 
   if (provider.length === 0) {

@@ -30,9 +30,7 @@ function encodedObjectPath(path: string): string {
     .join('/');
 }
 
-async function* streamBody(
-  stream: ReadableStream<Uint8Array>,
-): AsyncIterable<Uint8Array> {
+async function* streamBody(stream: ReadableStream<Uint8Array>): AsyncIterable<Uint8Array> {
   const reader = stream.getReader();
   try {
     while (true) {
@@ -130,9 +128,7 @@ export class SupabaseServiceAccountStorageReader implements StorageReader {
   }
 }
 
-export function storageReaderFromEnvironment(
-  env: NodeJS.ProcessEnv = process.env,
-): StorageReader {
+export function storageReaderFromEnvironment(env: NodeJS.ProcessEnv = process.env): StorageReader {
   return new SupabaseServiceAccountStorageReader({
     url: required(env, 'WORKER_SUPABASE_URL'),
     publishableKey: required(env, 'WORKER_SUPABASE_PUBLISHABLE_KEY'),

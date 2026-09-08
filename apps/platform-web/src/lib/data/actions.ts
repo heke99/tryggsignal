@@ -454,7 +454,6 @@ export async function registerLocalPropertyAction(formData: FormData): Promise<v
   redirect(`${detailPath(caseId)}?ok=property-registered#fastighet`);
 }
 
-
 interface PrepareCaseDocumentInput {
   readonly caseId: string;
   readonly documentType: string;
@@ -613,9 +612,9 @@ export async function prepareCaseDocumentUploadAction(
   }
 
   const { client } = await authenticatedTenantSession();
-  const { data, error } = await client.schema('documents').rpc(
-    'prepare_case_document_upload_for_user',
-    {
+  const { data, error } = await client
+    .schema('documents')
+    .rpc('prepare_case_document_upload_for_user', {
       p_case_id: caseId,
       p_document_type: documentType,
       p_title: title,
@@ -626,8 +625,7 @@ export async function prepareCaseDocumentUploadAction(
       p_mime_type: mimeType,
       p_size_bytes: input.sizeBytes,
       p_sha256: sha256,
-    },
-  );
+    });
 
   if (error !== null) {
     throw new Error('Dokumentuppladdningen kunde inte auktoriseras.');
@@ -654,16 +652,15 @@ export async function prepareDocumentVersionUploadAction(
   }
 
   const { client } = await authenticatedTenantSession();
-  const { data, error } = await client.schema('documents').rpc(
-    'prepare_new_version_upload_for_user',
-    {
+  const { data, error } = await client
+    .schema('documents')
+    .rpc('prepare_new_version_upload_for_user', {
       p_document_id: documentId,
       p_original_filename: originalFilename,
       p_mime_type: mimeType,
       p_size_bytes: input.sizeBytes,
       p_sha256: sha256,
-    },
-  );
+    });
 
   if (error !== null) {
     throw new Error('Den nya dokumentversionen kunde inte auktoriseras.');
@@ -713,7 +710,9 @@ export async function retryDocumentConfirmationAction(formData: FormData): Promi
   const caseId = safeCaseId(formData);
   const documentVersionId = uuid(field(formData, 'documentVersionId'));
   if (caseId === null || documentVersionId === null) {
-    redirect(caseId === null ? '/handlaggning' : `${detailPath(caseId)}?error=validation#handlingar`);
+    redirect(
+      caseId === null ? '/handlaggning' : `${detailPath(caseId)}?error=validation#handlingar`,
+    );
   }
 
   const { client } = await authenticatedTenantSession();

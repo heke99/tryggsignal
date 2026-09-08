@@ -28,10 +28,19 @@ export function DocumentDownloadButton({
 
   return (
     <span className="download-action">
-      <button type="button" className="button-secondary" onClick={() => void download()} disabled={busy}>
+      <button
+        type="button"
+        className="button-secondary"
+        onClick={() => void download()}
+        disabled={busy}
+      >
         {busy ? 'Skapar länk…' : 'Hämta'}
       </button>
-      {error !== null && <span className="meta" role="alert">{error}</span>}
+      {error !== null && (
+        <span className="meta" role="alert">
+          {error}
+        </span>
+      )}
     </span>
   );
 }

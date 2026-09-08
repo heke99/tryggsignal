@@ -29,10 +29,12 @@ interface CommonProps {
 export function NewDocumentUploadForm({ caseId }: CommonProps) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [state, setState] = useState<{ kind: 'idle' | 'busy' | 'error' | 'success'; text: string }>({
-    kind: 'idle',
-    text: '',
-  });
+  const [state, setState] = useState<{ kind: 'idle' | 'busy' | 'error' | 'success'; text: string }>(
+    {
+      kind: 'idle',
+      text: '',
+    },
+  );
 
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -48,9 +50,7 @@ export function NewDocumentUploadForm({ caseId }: CommonProps) {
     }
 
     setState({ kind: 'busy', text: 'Beräknar kontrollsumma och förbereder säker uppladdning…' });
-    let prepared:
-      | Awaited<ReturnType<typeof prepareCaseDocumentUploadAction>>
-      | undefined;
+    let prepared: Awaited<ReturnType<typeof prepareCaseDocumentUploadAction>> | undefined;
 
     try {
       const digest = await sha256(file);
@@ -174,7 +174,9 @@ export function NewDocumentUploadForm({ caseId }: CommonProps) {
 
       {state.kind !== 'idle' && (
         <p
-          className={state.kind === 'error' ? 'notice notice-error form-field-wide' : 'meta form-field-wide'}
+          className={
+            state.kind === 'error' ? 'notice notice-error form-field-wide' : 'meta form-field-wide'
+          }
           role={state.kind === 'error' ? 'alert' : 'status'}
         >
           {state.text}
@@ -190,10 +192,12 @@ export function DocumentVersionUploadForm({
 }: CommonProps & { readonly documentId: string }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
-  const [state, setState] = useState<{ kind: 'idle' | 'busy' | 'error' | 'success'; text: string }>({
-    kind: 'idle',
-    text: '',
-  });
+  const [state, setState] = useState<{ kind: 'idle' | 'busy' | 'error' | 'success'; text: string }>(
+    {
+      kind: 'idle',
+      text: '',
+    },
+  );
 
   async function submit(event: React.FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -209,9 +213,7 @@ export function DocumentVersionUploadForm({
     }
 
     setState({ kind: 'busy', text: 'Förbereder ny immutable version…' });
-    let prepared:
-      | Awaited<ReturnType<typeof prepareDocumentVersionUploadAction>>
-      | undefined;
+    let prepared: Awaited<ReturnType<typeof prepareDocumentVersionUploadAction>> | undefined;
 
     try {
       prepared = await prepareDocumentVersionUploadAction({
