@@ -9,7 +9,7 @@
   },
   "scripts": {
     "lint": "eslint .",
-    "format": "prettier --write . && git diff --exit-code",
+    "format": "prettier --check .",
     "format:write": "prettier --write .",
     "typecheck": "tsc -b tsconfig.build.json",
     "test": "vitest run",
