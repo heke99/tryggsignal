@@ -19,7 +19,7 @@ export default async function NewCasePage({
   const tenant = await currentTenant();
   const options = await loadCaseCreationOptions(tenant);
   const { error } = await searchParams;
-  const message = error === undefined ? null : ERROR_MESSAGES[error] ?? ERROR_MESSAGES.create;
+  const message = error === undefined ? null : (ERROR_MESSAGES[error] ?? ERROR_MESSAGES.create);
 
   return (
     <main id="innehall">
@@ -106,10 +106,7 @@ export default async function NewCasePage({
                   (candidate) => candidate.id === workflow.authority_id,
                 );
                 return (
-                  <option
-                    key={`${workflow.authority_id}:${workflow.key}`}
-                    value={workflow.key}
-                  >
+                  <option key={`${workflow.authority_id}:${workflow.key}`} value={workflow.key}>
                     {authority?.name ?? 'Nämnd'} — {workflow.name} ({workflow.process_type})
                   </option>
                 );
