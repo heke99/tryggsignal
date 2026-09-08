@@ -65,30 +65,44 @@ function publicAssetUrl(client: SupabaseClient, path: string | null): string | u
 }
 
 function rowToView(client: SupabaseClient, row: BrandingRow): TenantBrandingView {
+  const shortName = row.short_name ?? undefined;
+  const secondaryColor = row.secondary_color ?? undefined;
+  const accentColor = row.accent_color ?? undefined;
+  const surfaceVariant = row.surface_variant ?? undefined;
+  const supportEmail = row.support_email ?? undefined;
+  const privacyUrl = row.privacy_url ?? undefined;
+  const accessibilityStatementUrl = row.accessibility_statement_url ?? undefined;
+  const termsUrl = row.terms_url ?? undefined;
+  const loginHeading = row.login_heading ?? undefined;
+  const loginSubheading = row.login_subheading ?? undefined;
+  const logoUrl = publicAssetUrl(client, row.logo_path);
+  const logoDarkUrl = publicAssetUrl(client, row.logo_dark_path);
+  const faviconUrl = publicAssetUrl(client, row.favicon_path);
+
   return {
     id: row.branding_id,
     version: row.version,
     status: row.status ?? 'PUBLISHED',
     contrastValidationStatus: row.contrast_validation_status ?? 'PASSED',
     displayName: row.display_name,
-    shortName: row.short_name ?? undefined,
     primaryColor: row.primary_color,
-    secondaryColor: row.secondary_color ?? undefined,
-    accentColor: row.accent_color ?? undefined,
-    surfaceVariant: row.surface_variant ?? undefined,
     locale: row.locale,
     showTryggsignalBranding: row.show_tryggsignal_branding,
-    supportEmail: row.support_email ?? undefined,
-    privacyUrl: row.privacy_url ?? undefined,
-    accessibilityStatementUrl: row.accessibility_statement_url ?? undefined,
-    termsUrl: row.terms_url ?? undefined,
-    loginHeading: row.login_heading ?? undefined,
-    loginSubheading: row.login_subheading ?? undefined,
-    logoUrl: publicAssetUrl(client, row.logo_path),
-    logoDarkUrl: publicAssetUrl(client, row.logo_dark_path),
-    faviconUrl: publicAssetUrl(client, row.favicon_path),
-    publishedAt: row.published_at,
-    supersedesId: row.supersedes_id,
+    ...(shortName === undefined ? {} : { shortName }),
+    ...(secondaryColor === undefined ? {} : { secondaryColor }),
+    ...(accentColor === undefined ? {} : { accentColor }),
+    ...(surfaceVariant === undefined ? {} : { surfaceVariant }),
+    ...(supportEmail === undefined ? {} : { supportEmail }),
+    ...(privacyUrl === undefined ? {} : { privacyUrl }),
+    ...(accessibilityStatementUrl === undefined ? {} : { accessibilityStatementUrl }),
+    ...(termsUrl === undefined ? {} : { termsUrl }),
+    ...(loginHeading === undefined ? {} : { loginHeading }),
+    ...(loginSubheading === undefined ? {} : { loginSubheading }),
+    ...(logoUrl === undefined ? {} : { logoUrl }),
+    ...(logoDarkUrl === undefined ? {} : { logoDarkUrl }),
+    ...(faviconUrl === undefined ? {} : { faviconUrl }),
+    ...('published_at' in row ? { publishedAt: row.published_at ?? null } : {}),
+    ...('supersedes_id' in row ? { supersedesId: row.supersedes_id ?? null } : {}),
   };
 }
 
