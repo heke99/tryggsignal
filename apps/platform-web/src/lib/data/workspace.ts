@@ -329,65 +329,65 @@ export async function loadCaseWorkspace(
     partyRelations,
     propertyLinks,
   ] = await Promise.all([
-      session.client
-        .schema('documents')
-        .from('documents')
-        .select('id, title, document_type, current_version')
-        .eq('case_id', caseId)
-        .order('created_at', { ascending: false })
-        .limit(50),
-      session.client
-        .schema('workflow')
-        .from('deadlines')
-        .select('id, name, due_at, status')
-        .eq('case_id', caseId)
-        .order('due_at', { ascending: true }),
-      session.client
-        .schema('core')
-        .from('case_status_history')
-        .select('id, to_status, changed_at')
-        .eq('case_id', caseId)
-        .order('changed_at', { ascending: false })
-        .limit(20),
-      session.client
-        .schema('workflow')
-        .from('workflow_instances')
-        .select('id, current_state, status, template_version_id, started_at')
-        .eq('case_id', caseId)
-        .order('started_at', { ascending: false })
-        .limit(1)
-        .maybeSingle<{
-          id: string;
-          current_state: string;
-          status: string;
-          template_version_id: string;
-          started_at: string;
-        }>(),
-      session.client
-        .schema('identity')
-        .from('user_memberships')
-        .select('user_id')
-        .eq('authority_id', header.authority_id),
-      session.client
-        .schema('organization')
-        .from('teams')
-        .select('id, name')
-        .eq('authority_id', header.authority_id)
-        .eq('is_active', true)
-        .order('name', { ascending: true }),
-      session.client
-        .schema('core')
-        .from('case_parties')
-        .select('id, party_id, relationship, identity_user_id, verified_at')
-        .eq('case_id', caseId)
-        .order('created_at', { ascending: true }),
-      session.client
-        .schema('core')
-        .from('case_properties')
-        .select('property_id, is_primary')
-        .eq('case_id', caseId)
-        .order('is_primary', { ascending: false }),
-    ]);
+    session.client
+      .schema('documents')
+      .from('documents')
+      .select('id, title, document_type, current_version')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    session.client
+      .schema('workflow')
+      .from('deadlines')
+      .select('id, name, due_at, status')
+      .eq('case_id', caseId)
+      .order('due_at', { ascending: true }),
+    session.client
+      .schema('core')
+      .from('case_status_history')
+      .select('id, to_status, changed_at')
+      .eq('case_id', caseId)
+      .order('changed_at', { ascending: false })
+      .limit(20),
+    session.client
+      .schema('workflow')
+      .from('workflow_instances')
+      .select('id, current_state, status, template_version_id, started_at')
+      .eq('case_id', caseId)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        current_state: string;
+        status: string;
+        template_version_id: string;
+        started_at: string;
+      }>(),
+    session.client
+      .schema('identity')
+      .from('user_memberships')
+      .select('user_id')
+      .eq('authority_id', header.authority_id),
+    session.client
+      .schema('organization')
+      .from('teams')
+      .select('id, name')
+      .eq('authority_id', header.authority_id)
+      .eq('is_active', true)
+      .order('name', { ascending: true }),
+    session.client
+      .schema('core')
+      .from('case_parties')
+      .select('id, party_id, relationship, identity_user_id, verified_at')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: true }),
+    session.client
+      .schema('core')
+      .from('case_properties')
+      .select('property_id, is_primary')
+      .eq('case_id', caseId)
+      .order('is_primary', { ascending: false }),
+  ]);
 
   const userIds = Array.from(
     new Set(
@@ -488,15 +488,21 @@ export async function loadCaseWorkspace(
       property,
     ]),
   );
-  const identifiers = (identifiersResult.data ?? []) as Array<CaseProperty['identifiers'][number] & {
-    property_id: string;
-  }>;
-  const addresses = (addressesResult.data ?? []) as Array<CaseProperty['addresses'][number] & {
-    property_id: string;
-  }>;
-  const buildings = (buildingsResult.data ?? []) as Array<CaseProperty['buildings'][number] & {
-    property_id: string;
-  }>;
+  const identifiers = (identifiersResult.data ?? []) as Array<
+    CaseProperty['identifiers'][number] & {
+      property_id: string;
+    }
+  >;
+  const addresses = (addressesResult.data ?? []) as Array<
+    CaseProperty['addresses'][number] & {
+      property_id: string;
+    }
+  >;
+  const buildings = (buildingsResult.data ?? []) as Array<
+    CaseProperty['buildings'][number] & {
+      property_id: string;
+    }
+  >;
 
   const properties: CaseProperty[] = propertyLinkRows.flatMap((link) => {
     const property = linkedPropertyById.get(link.property_id);
@@ -679,7 +685,6 @@ export async function loadCaseCreationOptions(
       }),
   };
 }
-
 
 function normalizePropertySearch(value: string): string {
   return value
