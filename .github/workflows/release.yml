@@ -54,6 +54,8 @@ jobs:
         run: supabase start
       - name: Replay migrations from zero
         run: supabase db reset --no-seed
+      - name: Restart disposable Supabase services after reset
+        run: supabase start
       - name: Resolve local Supabase runtime
         shell: bash
         run: |
@@ -63,6 +65,7 @@ jobs:
           service_role_key="$(printf '%s\n' "$status" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')"
           if [ -z "$db_url" ] || [ -z "$api_url" ] || [ -z "$service_role_key" ]; then
             echo "Could not resolve local Supabase runtime credentials" >&2
+            printf '%s\n' "$status" >&2
             exit 1
           fi
           echo "DB_URL=$db_url" >> "$GITHUB_ENV"
