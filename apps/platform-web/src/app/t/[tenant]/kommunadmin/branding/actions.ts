@@ -29,9 +29,7 @@ function color(formData: FormData, key: string): string | undefined {
 
 function uuid(formData: FormData, key: string): string | null {
   const raw = value(formData, key, 64);
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    raw,
-  )
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
     ? raw
     : null;
 }
@@ -124,9 +122,7 @@ export async function uploadBrandingAssetAction(formData: FormData): Promise<voi
   const brandingId = uuid(formData, 'brandingId');
   const kindRaw = value(formData, 'kind', 20);
   const kind: BrandingAssetKind | null =
-    kindRaw === 'LOGO' || kindRaw === 'LOGO_DARK' || kindRaw === 'FAVICON'
-      ? kindRaw
-      : null;
+    kindRaw === 'LOGO' || kindRaw === 'LOGO_DARK' || kindRaw === 'FAVICON' ? kindRaw : null;
   const file = formData.get('asset');
 
   if (brandingId === null || kind === null || !(file instanceof File) || file.size === 0) {
