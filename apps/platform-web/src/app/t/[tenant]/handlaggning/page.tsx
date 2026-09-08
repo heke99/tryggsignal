@@ -66,9 +66,14 @@ export default async function ControlTower() {
           <h1>Kontrolltorn</h1>
           <p className="meta">Arbetsköer som kräver handling, inte en rapportvy.</p>
         </div>
-        <Link className="button-primary" href="/handlaggning/arenden/nytt">
-          Nytt ärende
-        </Link>
+        <div className="inline-action">
+          <Link className="button-secondary" href="/handlaggning/tillsyn">
+            PBL-tillsyn
+          </Link>
+          <Link className="button-primary" href="/handlaggning/arenden/nytt">
+            Nytt ärende
+          </Link>
+        </div>
       </div>
 
       {!tower.available && (
