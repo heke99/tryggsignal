@@ -80,7 +80,6 @@ export async function recordOvkProtocolAction(formData: FormData): Promise<void>
   const objectId = uuid(field(formData, 'objectId'));
   const performedAt = field(formData, 'performedAt');
   const result = field(formData, 'result').toUpperCase();
-  const documentId = uuid(field(formData, 'documentId'));
   const documentVersionId = uuid(field(formData, 'documentVersionId'));
   const inspectorName = field(formData, 'inspectorName');
   const inspectorOrganization = field(formData, 'inspectorOrganization');
@@ -89,7 +88,6 @@ export async function recordOvkProtocolAction(formData: FormData): Promise<void>
   if (
     caseId === null ||
     objectId === null ||
-    documentId === null ||
     documentVersionId === null ||
     !PROTOCOL_RESULTS.has(result) ||
     performedAt.length !== 10 ||
@@ -107,12 +105,24 @@ export async function recordOvkProtocolAction(formData: FormData): Promise<void>
   }
 
   const db = await client();
+  const version = await db
+    .schema('documents')
+    .from('document_versions')
+    .select('document_id')
+    .eq('id', documentVersionId)
+    .eq('ingestion_status', 'CLEAN')
+    .maybeSingle<{ document_id: string }>();
+
+  if (version.data === null) {
+    redirect(`${casePath(caseId)}?error=ovk-protocol#ovk`);
+  }
+
   const { error } = await db.schema('compliance').rpc('record_ovk_protocol_for_user', {
     p_case_id: caseId,
     p_compliance_object_id: objectId,
     p_performed_at: performedAt,
     p_result: result,
-    p_document_id: documentId,
+    p_document_id: version.data.document_id,
     p_document_version_id: documentVersionId,
     p_inspector_name: inspectorName || null,
     p_inspector_organization: inspectorOrganization || null,
