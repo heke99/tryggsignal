@@ -16,7 +16,9 @@ import {
  */
 export class TenantDataPlaneUnavailableError extends Error {
   constructor(reference: string) {
-    super(`No data-plane configuration is available for "${reference}" in this environment.`);
+    super(
+      `No data-plane configuration is available for "${reference}" in this environment.`,
+    );
     this.name = 'TenantDataPlaneUnavailableError';
   }
 }
