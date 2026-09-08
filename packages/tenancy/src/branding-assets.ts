@@ -34,7 +34,9 @@ function ensureDimensions(width: number, height: number): void {
 
 function inspectPng(bytes: Uint8Array): BrandingImageInfo | null {
   const signature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
-  if (bytes.length < 24 || !signature.every((value, index) => bytes[index] === value)) return null;
+  if (bytes.length < 24 || !signature.every((value, index) => bytes[index] === value)) {
+    return null;
+  }
 
   // A valid PNG starts with an IHDR chunk whose width/height are big-endian.
   if (
@@ -117,5 +119,7 @@ export function inspectBrandingImage(bytes: Uint8Array): BrandingImageInfo {
   const webp = inspectWebp(bytes);
   if (webp !== null) return webp;
 
-  throw new InvalidBrandingAssetError('Only genuine PNG or WebP image bytes are accepted.');
+  throw new InvalidBrandingAssetError(
+    'Only genuine PNG or WebP image bytes are accepted.',
+  );
 }
