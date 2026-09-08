@@ -518,13 +518,34 @@ export async function loadCaseWorkspace(
         is_primary: link.is_primary,
         identifiers: identifiers
           .filter((identifier) => identifier.property_id === property.id)
-          .map(({ property_id: _propertyId, ...identifier }) => identifier),
+          .map((identifier) => ({
+            id: identifier.id,
+            identifier_type: identifier.identifier_type,
+            value: identifier.value,
+            source: identifier.source,
+          })),
         addresses: addresses
           .filter((address) => address.property_id === property.id)
-          .map(({ property_id: _propertyId, ...address }) => address),
+          .map((address) => ({
+            id: address.id,
+            street_name: address.street_name,
+            street_number: address.street_number,
+            letter: address.letter,
+            postal_code: address.postal_code,
+            postal_town: address.postal_town,
+            source: address.source,
+          })),
         buildings: buildings
           .filter((building) => building.property_id === property.id)
-          .map(({ property_id: _propertyId, ...building }) => building),
+          .map((building) => ({
+            id: building.id,
+            building_designation: building.building_designation,
+            building_purpose: building.building_purpose,
+            year_built: building.year_built,
+            gross_floor_area: building.gross_floor_area,
+            floors: building.floors,
+            source: building.source,
+          })),
       },
     ];
   });
