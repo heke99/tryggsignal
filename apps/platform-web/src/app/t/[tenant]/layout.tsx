@@ -1,8 +1,30 @@
 import Image from 'next/image';
-import type { CSSProperties } from 'react';
+import type { Metadata } from 'next';
+import { cache, type CSSProperties } from 'react';
 import { brandingCssVariableMap } from '@tryggsignal/tenancy';
 import { currentTenant } from '@/lib/tenant/context';
 import { resolvePublishedBranding } from '@/lib/tenant/branding';
+
+const currentTenantBranding = cache(async () => {
+  const { tenant, branding } = await currentTenantBranding();
+  return { tenant, branding };
+});
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { branding } = await currentTenantBranding();
+  return {
+    title: {
+      default: branding.displayName,
+      template: `%s | ${branding.displayName}`,
+    },
+    icons:
+      branding.faviconUrl === undefined
+        ? undefined
+        : {
+            icon: [{ url: branding.faviconUrl }],
+          },
+  };
+}
 
 /**
  * Tenant shell. The tenant is taken from the resolved host context, never from
