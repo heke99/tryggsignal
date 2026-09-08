@@ -267,7 +267,13 @@ export async function uploadTenantBrandingAsset(
   });
 
   if (attachError !== null) {
-    await client.storage.from(BRANDING_BUCKET).remove([path]);
+    await Promise.all([
+      client.storage.from(BRANDING_BUCKET).remove([path]),
+      client.rpc('discard_branding_asset', {
+        p_tenant_id: context.tenantId,
+        p_asset_id: assetId,
+      }),
+    ]);
     throw new BrandingRuntimeError(`Could not attach branding asset: ${attachError.message}`);
   }
 }
