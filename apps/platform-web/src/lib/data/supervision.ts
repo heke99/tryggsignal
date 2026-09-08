@@ -165,9 +165,7 @@ export async function loadCaseSupervision(
           await session.client
             .schema('inspection')
             .from('finding_evidence')
-            .select(
-              'id, finding_id, document_id, document_version_id, note, captured_at',
-            )
+            .select('id, finding_id, document_id, document_version_id, note, captured_at')
             .in('finding_id', findingIds)
             .order('captured_at', { ascending: false })
         ).data ?? []);
@@ -360,9 +358,9 @@ export async function loadSupervisionQueue(context: TenantContext): Promise<Supe
         ).data ?? []);
 
   const caseById = new Map(
-    (
-      cases as Array<{ id: string; case_number: string; title: string }>
-    ).map((caseRow) => [caseRow.id, caseRow] as const),
+    (cases as Array<{ id: string; case_number: string; title: string }>).map(
+      (caseRow) => [caseRow.id, caseRow] as const,
+    ),
   );
 
   return {

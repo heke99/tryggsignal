@@ -1717,8 +1717,8 @@ export default async function CaseWorkspacePage({
           <div>
             <h2 id="h-supervision">PBL-tillsyn</h2>
             <p className="meta">
-              Risk är operativ prioritering. Juridiska krav, förelägganden och förbud kräver
-              spårbar regel-/beslutsgrund och fattas aldrig av AI.
+              Risk är operativ prioritering. Juridiska krav, förelägganden och förbud kräver spårbar
+              regel-/beslutsgrund och fattas aldrig av AI.
             </p>
           </div>
           <Link className="button-secondary" href="/handlaggning/tillsyn">
@@ -1742,12 +1742,7 @@ export default async function CaseWorkspacePage({
             </div>
             <div className="form-field form-field-wide">
               <label htmlFor="supervisionAllegation">Uppgift / frågeställning</label>
-              <textarea
-                id="supervisionAllegation"
-                name="allegation"
-                rows={4}
-                maxLength={10000}
-              />
+              <textarea id="supervisionAllegation" name="allegation" rows={4} maxLength={10000} />
             </div>
             <div className="form-actions form-field-wide">
               <button type="submit">Öppna PBL-tillsyn</button>
@@ -1854,7 +1849,9 @@ export default async function CaseWorkspacePage({
                         property.buildings.map((building) => (
                           <option key={building.id} value={building.id}>
                             {property.designation} ·{' '}
-                            {building.building_designation ?? building.building_purpose ?? 'Byggnad'}
+                            {building.building_designation ??
+                              building.building_purpose ??
+                              'Byggnad'}
                           </option>
                         )),
                       )}
@@ -2006,7 +2003,9 @@ export default async function CaseWorkspacePage({
                       <span className="status-badge">{finding.severity}</span>{' '}
                       <span className="status-badge">{finding.status}</span>
                       {finding.dueAt !== null && (
-                        <p className="meta">Senast {finding.dueAt.slice(0, 16).replace('T', ' ')}</p>
+                        <p className="meta">
+                          Senast {finding.dueAt.slice(0, 16).replace('T', ' ')}
+                        </p>
                       )}
                     </div>
                   </div>

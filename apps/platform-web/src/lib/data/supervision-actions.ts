@@ -46,9 +46,7 @@ async function session() {
 function validFuture(value: string): string | null {
   if (value === '') return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) || date.getTime() <= Date.now()
-    ? null
-    : date.toISOString();
+  return Number.isNaN(date.getTime()) || date.getTime() <= Date.now() ? null : date.toISOString();
 }
 
 function lines(value: string): string[] {
@@ -64,12 +62,12 @@ export async function openSupervisionAction(formData: FormData): Promise<void> {
   const sourceType = field(formData, 'sourceType').toUpperCase();
   const allegation = field(formData, 'allegation');
 
-  if (
-    caseId === null ||
-    !SOURCES.has(sourceType) ||
-    allegation.length > 10_000
-  ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=supervision-open#tillsyn`);
+  if (caseId === null || !SOURCES.has(sourceType) || allegation.length > 10_000) {
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=supervision-open#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -99,7 +97,11 @@ export async function assessSupervisionRiskAction(formData: FormData): Promise<v
     score > 100 ||
     reasons.some((item) => item.reason.length > 1000)
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -133,7 +135,11 @@ export async function scheduleSupervisionInspectionAction(formData: FormData): P
     (buildingRaw !== '' && buildingId === null) ||
     notes.length > 10_000
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -162,7 +168,11 @@ export async function completeSupervisionInspectionAction(formData: FormData): P
     !INSPECTION_RESULTS.has(result) ||
     notes.length > 10_000
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -199,7 +209,11 @@ export async function recordSupervisionFindingAction(formData: FormData): Promis
     description.length > 10_000 ||
     (dueRaw !== '' && dueAt === null)
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -233,7 +247,11 @@ export async function addSupervisionFindingEvidenceAction(formData: FormData): P
     documentVersionId === null ||
     note.length > 4000
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -255,7 +273,11 @@ export async function resolveSupervisionFindingAction(formData: FormData): Promi
   const note = field(formData, 'note');
 
   if (caseId === null || findingId === null || note.length < 2 || note.length > 4000) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -291,7 +313,11 @@ export async function createSupervisionActionAction(formData: FormData): Promise
     legalReference.length > 2000 ||
     (decisionRaw !== '' && decisionId === null)
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -316,7 +342,11 @@ export async function completeSupervisionActionAction(formData: FormData): Promi
   const outcome = field(formData, 'outcome');
 
   if (caseId === null || actionId === null || outcome.length < 2 || outcome.length > 4000) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -345,7 +375,11 @@ export async function createSupervisionFollowupAction(formData: FormData): Promi
     dueAt === null ||
     note.length > 4000
   ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -368,7 +402,11 @@ export async function completeSupervisionFollowupAction(formData: FormData): Pro
   const outcome = field(formData, 'outcome');
 
   if (caseId === null || followupId === null || outcome.length < 2 || outcome.length > 4000) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
@@ -388,13 +426,12 @@ export async function closeSupervisionAction(formData: FormData): Promise<void> 
   const supervisionId = uuid(field(formData, 'supervisionId'));
   const reason = field(formData, 'reason');
 
-  if (
-    caseId === null ||
-    supervisionId === null ||
-    reason.length < 3 ||
-    reason.length > 4000
-  ) {
-    redirect(caseId === null ? '/handlaggning/tillsyn?error=validation' : `${casePath(caseId)}?error=validation#tillsyn`);
+  if (caseId === null || supervisionId === null || reason.length < 3 || reason.length > 4000) {
+    redirect(
+      caseId === null
+        ? '/handlaggning/tillsyn?error=validation'
+        : `${casePath(caseId)}?error=validation#tillsyn`,
+    );
   }
 
   const client = await session();
