@@ -219,7 +219,7 @@ export async function processDocument(
     throw new PermanentJobError('document_processing authority context mismatch');
   }
 
-  let inspection: Inspection | null = null;
+  const inspectionState: { current: Inspection | null } = { current: null };
 
   try {
     const download = await dependencies.storage.download(
@@ -235,15 +235,15 @@ export async function processDocument(
     }
 
     const stream = await inspectedStream(download, (result) => {
-      inspection = result;
+      inspectionState.current = result;
     });
     const scan = await dependencies.scanner.scan(stream);
 
-    if (inspection === null) {
+    if (inspectionState.current === null) {
       throw new Error('Document stream ended without integrity inspection');
     }
 
-    const checked: Inspection = inspection;
+    const checked = inspectionState.current;
     if (checked.sizeBytes !== Number(target.size_bytes)) {
       await complete(sql, target, 'REJECTED', {
         detectedMimeType: checked.detectedMimeType,
@@ -297,7 +297,7 @@ export async function processDocument(
     });
   } catch (error) {
     await complete(sql, target, 'ERROR', {
-      detectedMimeType: inspection?.detectedMimeType ?? null,
+      detectedMimeType: inspectionState.current?.detectedMimeType ?? null,
       reason: error instanceof Error ? error.message : String(error),
     });
     throw error;
