@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { currentTenant } from '@/lib/tenant/context';
 import { loadControlTower, type ControlTowerRow } from '@/lib/data/workspace';
 
@@ -21,29 +22,33 @@ function Queue({
       {rows.length === 0 ? (
         <p className="meta">{emptyLabel}</p>
       ) : (
-        <table>
-          <caption className="meta">{heading}</caption>
-          <thead>
-            <tr>
-              <th scope="col">Ärende</th>
-              <th scope="col">Rubrik</th>
-              <th scope="col">Status</th>
-              <th scope="col">Frist</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.id}>
-                <td>
-                  <a href={`/handlaggning/arenden/${row.id}`}>{row.case_number}</a>
-                </td>
-                <td>{row.title}</td>
-                <td>{row.status}</td>
-                <td>{row.statutory_due_at?.slice(0, 10) ?? '—'}</td>
+        <div className="table-scroll">
+          <table>
+            <caption className="meta">{heading}</caption>
+            <thead>
+              <tr>
+                <th scope="col">Ärende</th>
+                <th scope="col">Rubrik</th>
+                <th scope="col">Status</th>
+                <th scope="col">Frist</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.id}>
+                  <td>
+                    <Link href={`/handlaggning/arenden/${row.id}`}>{row.case_number}</Link>
+                  </td>
+                  <td>{row.title}</td>
+                  <td>
+                    <span className="status-badge">{row.status}</span>
+                  </td>
+                  <td>{row.statutory_due_at?.slice(0, 10) ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
@@ -55,7 +60,17 @@ export default async function ControlTower() {
 
   return (
     <main id="innehall">
-      <h1>Kontrolltorn</h1>
+      <div className="page-heading">
+        <div>
+          <p className="eyebrow">Handläggning</p>
+          <h1>Kontrolltorn</h1>
+          <p className="meta">Arbetsköer som kräver handling, inte en rapportvy.</p>
+        </div>
+        <Link className="button-primary" href="/handlaggning/arenden/nytt">
+          Nytt ärende
+        </Link>
+      </div>
+
       {!tower.available && (
         <div className="card" role="status">
           <p>Operativ data kan inte visas ännu.</p>
