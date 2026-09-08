@@ -17,6 +17,7 @@ export const PERMISSIONS = [
   'integration.manage',
   'security.manage',
   'branding.manage',
+  'domain.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -50,7 +51,14 @@ export type Role = (typeof ROLES)[number];
  * application in sync and is asserted against the database in the RLS test suite.
  */
 export const ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission[]>> = {
-  tenant_admin: ['case.read', 'case.assign', 'audit.read', 'integration.manage', 'branding.manage'],
+  tenant_admin: [
+    'case.read',
+    'case.assign',
+    'audit.read',
+    'integration.manage',
+    'branding.manage',
+    'domain.manage',
+  ],
   security_admin: ['audit.read', 'security.manage'],
   registrar: ['case.read', 'case.create', 'case.update', 'document.read', 'document.upload'],
   building_case_worker: [
