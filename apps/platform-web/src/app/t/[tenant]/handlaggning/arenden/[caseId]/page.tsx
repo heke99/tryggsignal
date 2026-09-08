@@ -4,9 +4,11 @@ import {
   advanceWorkflowAction,
   assignCaseAction,
   closeCaseAction,
+  evaluateCaseCompletenessAction,
   linkCasePropertyAction,
   registerLocalPropertyAction,
   retryDocumentConfirmationAction,
+  reviewCaseCompletenessAction,
   setPrimaryPropertyAction,
   setWorkflowPauseAction,
   updateCasePartyRelationshipAction,
@@ -16,7 +18,11 @@ import {
 import { DocumentDownloadButton } from './DocumentDownloadButton';
 import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
-import { loadCaseWorkspace, searchPropertyCandidates } from '@/lib/data/workspace';
+import {
+  loadCaseCompleteness,
+  loadCaseWorkspace,
+  searchPropertyCandidates,
+} from '@/lib/data/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +32,7 @@ const TABS = [
   'Handlingar',
   'Parter',
   'Fastighet',
+  'Kompletthet',
   'Process',
   'Meddelanden',
   'Remisser',
@@ -54,6 +61,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   'document-confirm': 'Filen finns inte i Storage eller kunde inte köas för säkerhetskontroll.',
   'document-metadata':
     'Dokumentets klassificering kunde inte uppdateras. Kontrollera behörighet och värden.',
+  completeness:
+    'Kompletthetsbedömningen kunde inte genomföras. Kontrollera profil, källor och behörighet.',
+  'completeness-review':
+    'Den mänskliga kompletthetsgranskningen kunde inte sparas.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -70,6 +81,8 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'property-registered': 'Den provisoriska lokala fastigheten har registrerats och kopplats.',
   'document-confirmed': 'Filen är bekräftad och köad för säkerhetskontroll.',
   'document-metadata': 'Dokumentets metadata och informationsklass har uppdaterats.',
+  completeness: 'Kompletthetsbedömningen har körts och sparats med evidens.',
+  'completeness-review': 'Den mänskliga kompletthetsgranskningen har sparats.',
 };
 
 export default async function CaseWorkspacePage({
@@ -101,6 +114,7 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
+  const completeness = await loadCaseCompleteness(tenant, caseId, header.authority_id);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
   const errorMessage =
