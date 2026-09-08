@@ -37,7 +37,7 @@ as $$
   )
 $$;
 
-revoke all on function authz.has_tenant_permission(text) from public;
+revoke all on function authz.has_tenant_permission(text) from public, anon, authenticated;
 grant execute on function authz.has_tenant_permission(text) to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ begin
 end;
 $$;
 
-revoke all on function platform.assert_branding_asset_tenant() from public;
+revoke all on function platform.assert_branding_asset_tenant() from public, anon, authenticated;
 
 create trigger tenant_branding_asset_tenant
   before insert or update of tenant_id, logo_asset_id, logo_dark_asset_id, favicon_asset_id
@@ -194,7 +194,7 @@ as $$
     and b.status = 'PUBLISHED'
 $$;
 
-revoke all on function public.resolve_tenant_branding(uuid, integer) from public;
+revoke all on function public.resolve_tenant_branding(uuid, integer) from public, anon, authenticated;
 grant execute on function public.resolve_tenant_branding(uuid, integer) to service_role;
 
 create or replace function public.list_tenant_branding_versions(p_tenant_id uuid)
@@ -260,7 +260,7 @@ as $$
   order by b.version desc
 $$;
 
-revoke all on function public.list_tenant_branding_versions(uuid) from public;
+revoke all on function public.list_tenant_branding_versions(uuid) from public, anon, authenticated;
 grant execute on function public.list_tenant_branding_versions(uuid) to service_role;
 
 create or replace function public.save_tenant_branding_draft(
@@ -391,7 +391,7 @@ $$;
 revoke all on function public.save_tenant_branding_draft(
   uuid, uuid, text, text, text, text, text, text, text, text, text, text, text, text,
   boolean, text, boolean
-) from public;
+) from public, anon, authenticated;
 grant execute on function public.save_tenant_branding_draft(
   uuid, uuid, text, text, text, text, text, text, text, text, text, text, text, text,
   boolean, text, boolean
@@ -439,7 +439,7 @@ $$;
 
 revoke all on function public.register_branding_asset(
   uuid, uuid, text, text, text, text, integer, integer, bigint
-) from public;
+) from public, anon, authenticated;
 grant execute on function public.register_branding_asset(
   uuid, uuid, text, text, text, text, integer, integer, bigint
 ) to service_role;
@@ -470,7 +470,7 @@ begin
 end;
 $$;
 
-revoke all on function public.discard_branding_asset(uuid, uuid) from public;
+revoke all on function public.discard_branding_asset(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.discard_branding_asset(uuid, uuid) to service_role;
 
 create or replace function public.set_tenant_branding_asset(
@@ -526,7 +526,7 @@ begin
 end;
 $$;
 
-revoke all on function public.set_tenant_branding_asset(uuid, uuid, text, uuid, uuid) from public;
+revoke all on function public.set_tenant_branding_asset(uuid, uuid, text, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.set_tenant_branding_asset(uuid, uuid, text, uuid, uuid) to service_role;
 
 create or replace function public.publish_tenant_branding(
@@ -551,7 +551,7 @@ begin
 end;
 $$;
 
-revoke all on function public.publish_tenant_branding(uuid, uuid, uuid) from public;
+revoke all on function public.publish_tenant_branding(uuid, uuid, uuid) from public, anon, authenticated;
 grant execute on function public.publish_tenant_branding(uuid, uuid, uuid) to service_role;
 
 create or replace function public.rollback_tenant_branding(
@@ -568,5 +568,5 @@ begin
 end;
 $$;
 
-revoke all on function public.rollback_tenant_branding(uuid, uuid) from public;
+revoke all on function public.rollback_tenant_branding(uuid, uuid) from public, anon, authenticated;
 grant execute on function public.rollback_tenant_branding(uuid, uuid) to service_role;
