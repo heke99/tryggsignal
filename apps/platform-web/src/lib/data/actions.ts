@@ -29,6 +29,20 @@ const PARTY_RELATIONSHIPS = new Set([
 const INFORMATION_CLASSES = new Set(['PUBLIC', 'INTERNAL', 'RESTRICTED', 'SECRET']);
 const SHA256 = /^[0-9a-f]{64}$/;
 const MAX_DOCUMENT_BYTES = 200 * 1024 * 1024;
+const COMMUNICATION_CHANNELS = new Set([
+  'EMAIL',
+  'DIGITAL_POST',
+  'SMS',
+  'PORTAL',
+  'API',
+  'PHYSICAL_POST',
+]);
+const REFERRAL_POSITIONS = new Set([
+  'NO_OBJECTION',
+  'OBJECTION',
+  'CONDITIONAL',
+  'NO_OPINION',
+]);
 
 function field(formData: FormData, name: string): string {
   return String(formData.get(name) ?? '').trim();
@@ -886,4 +900,185 @@ export async function reviewCaseCompletenessAction(formData: FormData): Promise<
 
   revalidatePath(detailPath(caseId));
   redirect(`${detailPath(caseId)}?ok=completeness-review#kompletthet`);
+}
+
+
+/** Phase G7: create a case-scoped referral through the command boundary. */
+export async function createReferralAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const subject = field(formData, 'subject');
+  const description = field(formData, 'description');
+  const dueAtRaw = field(formData, 'dueAt');
+  const dueAt = new Date(dueAtRaw);
+
+  if (
+    caseId === null ||
+    subject.length < 2 ||
+    subject.length > 300 ||
+    description.length > 10_000 ||
+    dueAtRaw === '' ||
+    Number.isNaN(dueAt.getTime()) ||
+    dueAt.getTime() <= Date.now()
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#remisser`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('referral').rpc('create_for_user', {
+    p_case_id: caseId,
+    p_subject: subject,
+    p_description: description || null,
+    p_due_at: dueAt.toISOString(),
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=referral-create#remisser`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=referral-created#remisser`);
+}
+
+export async function addReferralRecipientAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const referralId = uuid(field(formData, 'referralId'));
+  const partyRaw = field(formData, 'partyId');
+  const partyId = partyRaw === '' ? null : uuid(partyRaw);
+  const organizationName = field(formData, 'organizationName');
+  const contactAddress = field(formData, 'contactAddress');
+
+  if (
+    caseId === null ||
+    referralId === null ||
+    (partyRaw !== '' && partyId === null) ||
+    organizationName.length > 300 ||
+    contactAddress.length > 500 ||
+    (partyId === null && (organizationName.length < 2 || contactAddress.length < 3))
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#remisser`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('referral').rpc('add_recipient_for_user', {
+    p_referral_id: referralId,
+    p_party_id: partyId,
+    p_organization_name: organizationName || null,
+    p_contact_address: contactAddress || null,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=referral-recipient#remisser`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=referral-recipient#remisser`);
+}
+
+export async function queueReferralDeliveryAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const recipientId = uuid(field(formData, 'recipientId'));
+  const channel = field(formData, 'channel').toUpperCase();
+
+  if (
+    caseId === null ||
+    recipientId === null ||
+    !COMMUNICATION_CHANNELS.has(channel)
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#remisser`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('referral').rpc('queue_delivery_for_user', {
+    p_recipient_id: recipientId,
+    p_channel: channel,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=referral-queue#remisser`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=referral-queued#remisser`);
+}
+
+export async function recordReferralResponseAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const recipientId = uuid(field(formData, 'recipientId'));
+  const position = field(formData, 'position').toUpperCase();
+  const responseText = field(formData, 'responseText');
+  const documentRaw = field(formData, 'documentId');
+  const documentId = documentRaw === '' ? null : uuid(documentRaw);
+
+  if (
+    caseId === null ||
+    recipientId === null ||
+    !REFERRAL_POSITIONS.has(position) ||
+    responseText.length > 20_000 ||
+    (documentRaw !== '' && documentId === null) ||
+    (responseText.length === 0 && documentId === null)
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#remisser`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('referral').rpc('record_response_for_user', {
+    p_recipient_id: recipientId,
+    p_response_text: responseText || null,
+    p_position: position,
+    p_document_id: documentId,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=referral-response#remisser`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=referral-response#remisser`);
+}
+
+export async function queueReferralFollowupAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const recipientId = uuid(field(formData, 'recipientId'));
+  const channel = field(formData, 'channel').toUpperCase();
+
+  if (
+    caseId === null ||
+    recipientId === null ||
+    !COMMUNICATION_CHANNELS.has(channel)
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#remisser`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('referral').rpc('queue_followup_for_user', {
+    p_recipient_id: recipientId,
+    p_channel: channel,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=referral-followup#remisser`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=referral-followup#remisser`);
 }
