@@ -366,3 +366,31 @@ details > summary {
     min-width: 0;
   }
 }
+
+
+.document-version-list {
+  display: grid;
+  gap: 0.75rem;
+  padding-left: 1.25rem;
+}
+
+.document-version {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.document-version-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.document-hash {
+  overflow-wrap: anywhere;
+}
+
+.download-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
