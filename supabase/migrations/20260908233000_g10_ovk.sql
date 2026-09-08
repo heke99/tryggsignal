@@ -62,6 +62,12 @@ alter table compliance.compliance_findings
   add column resolution_note text,
   add column resolved_by uuid references identity.users (id) on delete restrict;
 
+create unique index compliance_objects_property_reference_unique
+  on compliance.compliance_objects (
+    authority_id, obligation_id, property_id, object_reference
+  )
+  where building_id is null;
+
 create index ovk_case_objects_object_idx
   on compliance.ovk_case_objects (compliance_object_id, case_id);
 create index ovk_protocols_object_idx
