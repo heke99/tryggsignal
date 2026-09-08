@@ -152,13 +152,14 @@ create policy documents_select on documents.documents
         )::boolean
         and exists (select 1 from core.cases c where c.id = documents.case_id)
       else
-        (
-          authz.can('document.read', jsonb_build_object(
-            'authority_id', authority_id,
-            'information_class', information_class
-          )) ->> 'allowed'
-        )::boolean
+        (select authz.scope_keys('document.read'))
+          && authz.case_scope_keys(authority_id, department_id, null)
         and (case_id is null or exists (select 1 from core.cases c where c.id = documents.case_id))
+        and (
+          information_class <> 'SECRET'
+          or (select authz.scope_keys('security.manage'))
+               && authz.case_scope_keys(authority_id, department_id, null)
+        )
     end
   );
 
