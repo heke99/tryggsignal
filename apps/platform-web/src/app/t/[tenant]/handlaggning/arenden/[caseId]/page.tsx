@@ -1038,6 +1038,297 @@ export default async function CaseWorkspacePage({
         )}
       </section>
 
+      <section id="remisser" aria-labelledby="h-referrals" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-referrals">Remisser och kommunikation ({referrals.length})</h2>
+            <p className="meta">
+              Köad leverans är inte samma sak som skickad. Status SENT sätts först när
+              worker/provider har bekräftat utskicket.
+            </p>
+          </div>
+        </div>
+
+        <details className="create-panel">
+          <summary>Skapa remiss</summary>
+          <form action={createReferralAction} className="form-grid compact-form">
+            <input type="hidden" name="caseId" value={header.id} />
+            <div className="form-field form-field-wide">
+              <label htmlFor="referralSubject">Ämne</label>
+              <input
+                id="referralSubject"
+                name="subject"
+                type="text"
+                minLength={2}
+                maxLength={300}
+                required
+              />
+            </div>
+            <div className="form-field form-field-wide">
+              <label htmlFor="referralDescription">Beskrivning / fråga</label>
+              <textarea
+                id="referralDescription"
+                name="description"
+                rows={4}
+                maxLength={10000}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="referralDueAt">Svar senast</label>
+              <input id="referralDueAt" name="dueAt" type="datetime-local" required />
+            </div>
+            <div className="form-actions form-field-wide">
+              <button type="submit">Skapa remiss</button>
+            </div>
+          </form>
+        </details>
+
+        <div className="entity-list">
+          {referrals.map((referral) => (
+            <article className="entity-item" key={referral.id}>
+              <div className="entity-heading">
+                <div>
+                  <h3>
+                    {referral.subject} <span className="status-badge">{referral.status}</span>
+                  </h3>
+                  <p className="meta">
+                    Svar senast {referral.dueAt.slice(0, 16).replace('T', ' ')}
+                    {referral.queuedAt === null
+                      ? ''
+                      : ' · köad ' + referral.queuedAt.slice(0, 16).replace('T', ' ')}
+                    {referral.sentAt === null
+                      ? ''
+                      : ' · skickad ' + referral.sentAt.slice(0, 16).replace('T', ' ')}
+                  </p>
+                </div>
+              </div>
+
+              {referral.description !== null && <p>{referral.description}</p>}
+
+              <h4>Mottagare ({referral.recipients.length})</h4>
+              <div className="entity-list">
+                {referral.recipients.map((recipient) => (
+                  <div className="entity-item" key={recipient.id}>
+                    <div className="entity-heading">
+                      <div>
+                        <strong>{recipient.displayName}</strong>{' '}
+                        <span className="status-badge">{recipient.status}</span>
+                        {recipient.contactAddress !== null && (
+                          <p className="meta">{recipient.contactAddress}</p>
+                        )}
+                        {recipient.delivery !== null && (
+                          <p className="meta">
+                            Leverans: {recipient.delivery.channel} · {recipient.delivery.status}
+                            {recipient.delivery.externalReference === null
+                              ? ''
+                              : ' · ref ' + recipient.delivery.externalReference}
+                          </p>
+                        )}
+                        {recipient.delivery?.failedReason !== null &&
+                          recipient.delivery?.failedReason !== undefined && (
+                            <p className="notice notice-error" role="alert">
+                              Leveransfel: {recipient.delivery.failedReason}
+                            </p>
+                          )}
+                      </div>
+                    </div>
+
+                    {recipient.status === 'PENDING' && (
+                      <form action={queueReferralDeliveryAction} className="inline-action">
+                        <input type="hidden" name="caseId" value={header.id} />
+                        <input type="hidden" name="recipientId" value={recipient.id} />
+                        <label htmlFor={'referral-channel-' + recipient.id}>Kanal</label>
+                        <select
+                          id={'referral-channel-' + recipient.id}
+                          name="channel"
+                          defaultValue="EMAIL"
+                        >
+                          <option value="EMAIL">E-post</option>
+                          <option value="DIGITAL_POST">Digital post</option>
+                          <option value="SMS">SMS</option>
+                          <option value="PORTAL">Portal</option>
+                          <option value="PHYSICAL_POST">Fysisk post</option>
+                        </select>
+                        <button type="submit">Köa utskick</button>
+                      </form>
+                    )}
+
+                    {recipient.status === 'QUEUED' && (
+                      <p className="notice" role="status">
+                        Utskicket väntar på extern provider/worker och räknas ännu inte som skickat.
+                      </p>
+                    )}
+
+                    {recipient.response !== null ? (
+                      <div className="notice">
+                        <strong>Svar: {recipient.response.position ?? 'utan position'}</strong>
+                        {recipient.response.responseText !== null && (
+                          <p>{recipient.response.responseText}</p>
+                        )}
+                        <p className="meta">
+                          Mottaget {recipient.response.receivedAt.slice(0, 16).replace('T', ' ')}
+                        </p>
+                      </div>
+                    ) : (
+                      (recipient.status === 'SENT' || recipient.status === 'NO_RESPONSE') && (
+                        <details>
+                          <summary>Registrera svar</summary>
+                          <form
+                            action={recordReferralResponseAction}
+                            className="form-grid compact-form"
+                          >
+                            <input type="hidden" name="caseId" value={header.id} />
+                            <input type="hidden" name="recipientId" value={recipient.id} />
+                            <div className="form-field">
+                              <label htmlFor={'referral-position-' + recipient.id}>Position</label>
+                              <select
+                                id={'referral-position-' + recipient.id}
+                                name="position"
+                                defaultValue="NO_OPINION"
+                              >
+                                <option value="NO_OBJECTION">Ingen erinran</option>
+                                <option value="OBJECTION">Invändning</option>
+                                <option value="CONDITIONAL">Villkorat svar</option>
+                                <option value="NO_OPINION">Ingen ståndpunkt</option>
+                              </select>
+                            </div>
+                            <div className="form-field">
+                              <label htmlFor={'referral-document-' + recipient.id}>
+                                Svarshandling
+                              </label>
+                              <select
+                                id={'referral-document-' + recipient.id}
+                                name="documentId"
+                                defaultValue=""
+                              >
+                                <option value="">Ingen bifogad handling</option>
+                                {workspace.documents
+                                  .filter((document) => document.versions[0]?.ingestion_status === 'CLEAN')
+                                  .map((document) => (
+                                    <option key={document.id} value={document.id}>
+                                      {document.title}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div className="form-field form-field-wide">
+                              <label htmlFor={'referral-response-' + recipient.id}>Svarstext</label>
+                              <textarea
+                                id={'referral-response-' + recipient.id}
+                                name="responseText"
+                                rows={4}
+                                maxLength={20000}
+                              />
+                            </div>
+                            <div className="form-actions form-field-wide">
+                              <button type="submit">Registrera svar</button>
+                            </div>
+                          </form>
+                        </details>
+                      )
+                    )}
+
+                    {(recipient.status === 'SENT' || recipient.status === 'NO_RESPONSE') &&
+                      recipient.response === null && (
+                        <form action={queueReferralFollowupAction} className="inline-action">
+                          <input type="hidden" name="caseId" value={header.id} />
+                          <input type="hidden" name="recipientId" value={recipient.id} />
+                          <label htmlFor={'followup-channel-' + recipient.id}>
+                            Uppföljningskanal
+                          </label>
+                          <select
+                            id={'followup-channel-' + recipient.id}
+                            name="channel"
+                            defaultValue={recipient.delivery?.channel ?? 'EMAIL'}
+                          >
+                            <option value="EMAIL">E-post</option>
+                            <option value="DIGITAL_POST">Digital post</option>
+                            <option value="SMS">SMS</option>
+                            <option value="PORTAL">Portal</option>
+                            <option value="PHYSICAL_POST">Fysisk post</option>
+                          </select>
+                          <button type="submit" className="button-secondary">
+                            Köa uppföljning
+                          </button>
+                        </form>
+                      )}
+                  </div>
+                ))}
+                {referral.recipients.length === 0 && (
+                  <p className="meta">Ingen mottagare har lagts till.</p>
+                )}
+              </div>
+
+              {referral.sentAt === null && (
+                <details className="create-panel">
+                  <summary>Lägg till mottagare</summary>
+                  <form action={addReferralRecipientAction} className="form-grid compact-form">
+                    <input type="hidden" name="caseId" value={header.id} />
+                    <input type="hidden" name="referralId" value={referral.id} />
+                    <div className="form-field">
+                      <label htmlFor={'referral-party-' + referral.id}>
+                        Befintlig part i ärendet
+                      </label>
+                      <select
+                        id={'referral-party-' + referral.id}
+                        name="partyId"
+                        defaultValue=""
+                      >
+                        <option value="">Extern organisation</option>
+                        {workspace.parties.map((party) => (
+                          <option key={party.party_id} value={party.party_id}>
+                            {party.display_name} · {party.relationship}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor={'referral-org-' + referral.id}>
+                        Extern organisation
+                      </label>
+                      <input
+                        id={'referral-org-' + referral.id}
+                        name="organizationName"
+                        type="text"
+                        maxLength={300}
+                      />
+                    </div>
+                    <div className="form-field form-field-wide">
+                      <label htmlFor={'referral-address-' + referral.id}>
+                        Kontaktadress
+                      </label>
+                      <input
+                        id={'referral-address-' + referral.id}
+                        name="contactAddress"
+                        type="text"
+                        maxLength={500}
+                        placeholder="E-post, digital adress eller postadress"
+                      />
+                    </div>
+                    <div className="form-actions form-field-wide">
+                      <button type="submit">Lägg till mottagare</button>
+                    </div>
+                  </form>
+                </details>
+              )}
+
+              {referral.status === 'OVERDUE' && (
+                <p className="notice notice-error" role="alert">
+                  Svarstiden har passerat. Mottagare utan svar är markerade NO_RESPONSE och kan
+                  följas upp.
+                </p>
+              )}
+            </article>
+          ))}
+          {referrals.length === 0 && <p className="meta">Inga remisser registrerade.</p>}
+        </div>
+
+        <p className="meta">
+          Extern leveransprovider är fortfarande en separat produktionsaktivering (EB-09).
+          Domänstatusen förblir QUEUED tills en riktig leveranshändelse bekräftas.
+        </p>
+      </section>
+
       <section id="process" aria-labelledby="h-process" className="card">
         <div className="section-heading">
           <div>
