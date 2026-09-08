@@ -70,7 +70,7 @@ interface RateLimitRow {
 
 let controlPlaneClientPromise: Promise<SupabaseClient> | undefined;
 
-async function controlPlaneServerClient(): Promise<SupabaseClient> {
+export async function controlPlaneServerClient(): Promise<SupabaseClient> {
   if (controlPlaneClientPromise !== undefined) return controlPlaneClientPromise;
 
   controlPlaneClientPromise = (async () => {
