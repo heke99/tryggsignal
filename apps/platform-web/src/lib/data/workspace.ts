@@ -113,6 +113,7 @@ export interface CaseHeader {
   readonly authority_id: string;
   readonly department_id: string | null;
   readonly case_number: string;
+  readonly process_type: string;
   readonly title: string;
   readonly status: string;
   readonly phase: string;
