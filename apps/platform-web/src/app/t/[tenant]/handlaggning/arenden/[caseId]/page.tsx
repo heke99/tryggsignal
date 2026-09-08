@@ -4,9 +4,11 @@ import {
   advanceWorkflowAction,
   assignCaseAction,
   closeCaseAction,
+  evaluateCaseCompletenessAction,
   linkCasePropertyAction,
   registerLocalPropertyAction,
   retryDocumentConfirmationAction,
+  reviewCaseCompletenessAction,
   setPrimaryPropertyAction,
   setWorkflowPauseAction,
   updateCasePartyRelationshipAction,
@@ -16,7 +18,11 @@ import {
 import { DocumentDownloadButton } from './DocumentDownloadButton';
 import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
-import { loadCaseWorkspace, searchPropertyCandidates } from '@/lib/data/workspace';
+import {
+  loadCaseCompleteness,
+  loadCaseWorkspace,
+  searchPropertyCandidates,
+} from '@/lib/data/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +32,7 @@ const TABS = [
   'Handlingar',
   'Parter',
   'Fastighet',
+  'Kompletthet',
   'Process',
   'Meddelanden',
   'Remisser',
@@ -54,6 +61,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   'document-confirm': 'Filen finns inte i Storage eller kunde inte köas för säkerhetskontroll.',
   'document-metadata':
     'Dokumentets klassificering kunde inte uppdateras. Kontrollera behörighet och värden.',
+  completeness:
+    'Kompletthetsbedömningen kunde inte genomföras. Kontrollera profil, källor och behörighet.',
+  'completeness-review': 'Den mänskliga kompletthetsgranskningen kunde inte sparas.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -70,6 +80,8 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'property-registered': 'Den provisoriska lokala fastigheten har registrerats och kopplats.',
   'document-confirmed': 'Filen är bekräftad och köad för säkerhetskontroll.',
   'document-metadata': 'Dokumentets metadata och informationsklass har uppdaterats.',
+  completeness: 'Kompletthetsbedömningen har körts och sparats med evidens.',
+  'completeness-review': 'Den mänskliga kompletthetsgranskningen har sparats.',
 };
 
 export default async function CaseWorkspacePage({
@@ -101,6 +113,7 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
+  const completeness = await loadCaseCompleteness(tenant, caseId, header.authority_id);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
   const errorMessage =
@@ -868,6 +881,142 @@ export default async function CaseWorkspacePage({
           Om malware-scannern inte är konfigurerad stannar filen säkert i quarantine. Systemet
           öppnar aldrig en fil genom fail-open.
         </p>
+      </section>
+
+      <section id="kompletthet" aria-labelledby="h-completeness" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-completeness">Kompletthet</h2>
+            <p className="meta">
+              Bedömningen körs deterministiskt mot en publicerad och giltig regelversion. Varje
+              regel måste ha en registrerad källa; okända villkor går till mänsklig granskning.
+            </p>
+          </div>
+        </div>
+
+        <form action={evaluateCaseCompletenessAction} className="inline-action">
+          <input type="hidden" name="caseId" value={header.id} />
+          <label htmlFor="ruleSetVersionId">Kompletthetsprofil</label>
+          <select id="ruleSetVersionId" name="ruleSetVersionId" required defaultValue="">
+            <option value="" disabled>
+              Välj publicerad profil
+            </option>
+            {completeness.profiles.map((profile) => (
+              <option value={profile.versionId} key={profile.versionId}>
+                {profile.name} · v{profile.version} · från {profile.validFrom}
+              </option>
+            ))}
+          </select>
+          <button type="submit" disabled={completeness.profiles.length === 0}>
+            Kör bedömning
+          </button>
+        </form>
+
+        {completeness.profiles.length === 0 && (
+          <p className="notice" role="status">
+            Ingen publicerad och giltig completenessprofil finns för denna myndighet. Systemet
+            gissar inte krav.
+          </p>
+        )}
+
+        {completeness.current === null ? (
+          <p className="meta">Ingen kompletthetsbedömning har ännu sparats.</p>
+        ) : (
+          <div className="completeness-result">
+            <h3>
+              Aktuellt resultat <span className="status-badge">{completeness.current.result}</span>
+            </h3>
+            <p className="meta">
+              Bedömd {completeness.current.evaluatedAt.slice(0, 16).replace('T', ' ')} ·
+              regelversion {completeness.current.ruleSetVersionId}
+            </p>
+
+            {completeness.current.review !== null && (
+              <div className="notice">
+                <strong>Mänsklig resolution: {completeness.current.review.decision}</strong>
+                <p>{completeness.current.review.note}</p>
+                <p className="meta">
+                  {completeness.current.review.reviewedAt.slice(0, 16).replace('T', ' ')}
+                </p>
+              </div>
+            )}
+
+            {completeness.current.missingItems.length > 0 && (
+              <>
+                <h4>Saknas / kräver granskning</h4>
+                <ul>
+                  {completeness.current.missingItems.map((item) => (
+                    <li key={item.rule_id}>
+                      <strong>{item.label}</strong> <span className="meta">({item.reason})</span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <h4>Evidens och källor</h4>
+            <div className="entity-list">
+              {completeness.current.evidence.map((item) => (
+                <article className="entity-item" key={item.rule_id}>
+                  <div className="entity-heading">
+                    <div>
+                      <strong>{item.name}</strong>{' '}
+                      <span className="status-badge">{item.result}</span>
+                      <p className="meta">
+                        {item.kind}
+                        {item.value === null ? '' : ' · ' + item.value} · träffar{' '}
+                        {item.matched_count}
+                      </p>
+                    </div>
+                  </div>
+                  {item.legal_reference !== null && (
+                    <p className="meta">Referens: {item.legal_reference}</p>
+                  )}
+                  <ul>
+                    {item.sources.map((source, index) => (
+                      <li key={item.rule_id + '-' + index}>
+                        {source.source_type}: {source.reference}
+                        {source.url === null ? '' : ' · ' + source.url}
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              ))}
+            </div>
+
+            {completeness.current.result === 'HUMAN_REVIEW' &&
+              completeness.current.review === null && (
+                <details className="create-panel" open>
+                  <summary>Genomför mänsklig granskning</summary>
+                  <form action={reviewCaseCompletenessAction} className="form-grid compact-form">
+                    <input type="hidden" name="caseId" value={header.id} />
+                    <input type="hidden" name="assessmentId" value={completeness.current.id} />
+                    <div className="form-field">
+                      <label htmlFor="completenessDecision">Bedömning</label>
+                      <select id="completenessDecision" name="decision" defaultValue="INCOMPLETE">
+                        <option value="COMPLETE">Complete</option>
+                        <option value="INCOMPLETE">Incomplete</option>
+                      </select>
+                    </div>
+                    <div className="form-field form-field-wide">
+                      <label htmlFor="completenessNote">Motivering</label>
+                      <textarea
+                        id="completenessNote"
+                        name="note"
+                        rows={4}
+                        minLength={3}
+                        maxLength={4000}
+                        required
+                      />
+                    </div>
+                    <div className="form-actions form-field-wide">
+                      <button type="submit">Spara mänsklig granskning</button>
+                    </div>
+                  </form>
+                </details>
+              )}
+          </div>
+        )}
       </section>
 
       <section id="process" aria-labelledby="h-process" className="card">

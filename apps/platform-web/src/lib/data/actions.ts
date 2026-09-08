@@ -825,3 +825,65 @@ export async function createDocumentDownloadUrlAction(input: {
 
   return data.signedUrl;
 }
+
+/** Phase G6: evaluate completeness using a published, sourced rule-set version. */
+export async function evaluateCaseCompletenessAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const ruleSetVersionId = uuid(field(formData, 'ruleSetVersionId'));
+
+  if (caseId === null || ruleSetVersionId === null) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#kompletthet`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('rules').rpc('evaluate_case_completeness_for_user', {
+    p_case_id: caseId,
+    p_rule_set_version_id: ruleSetVersionId,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=completeness#kompletthet`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=completeness#kompletthet`);
+}
+
+export async function reviewCaseCompletenessAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const assessmentId = uuid(field(formData, 'assessmentId'));
+  const decision = field(formData, 'decision').toUpperCase();
+  const note = field(formData, 'note');
+
+  if (
+    caseId === null ||
+    assessmentId === null ||
+    !['COMPLETE', 'INCOMPLETE'].includes(decision) ||
+    note.length < 3 ||
+    note.length > 4000
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#kompletthet`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('rules').rpc('review_case_completeness_for_user', {
+    p_assessment_id: assessmentId,
+    p_decision: decision,
+    p_note: note,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=completeness-review#kompletthet`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=completeness-review#kompletthet`);
+}
