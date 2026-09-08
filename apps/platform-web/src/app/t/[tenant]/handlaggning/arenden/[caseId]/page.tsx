@@ -1,11 +1,16 @@
 import Link from 'next/link';
 import {
   addCasePartyAction,
+  addReferralRecipientAction,
   advanceWorkflowAction,
   assignCaseAction,
   closeCaseAction,
+  createReferralAction,
   evaluateCaseCompletenessAction,
   linkCasePropertyAction,
+  queueReferralDeliveryAction,
+  queueReferralFollowupAction,
+  recordReferralResponseAction,
   registerLocalPropertyAction,
   retryDocumentConfirmationAction,
   reviewCaseCompletenessAction,
@@ -20,6 +25,7 @@ import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUplo
 import { currentTenant } from '@/lib/tenant/context';
 import {
   loadCaseCompleteness,
+  loadCaseReferrals,
   loadCaseWorkspace,
   searchPropertyCandidates,
 } from '@/lib/data/workspace';
@@ -64,6 +70,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   completeness:
     'Kompletthetsbedömningen kunde inte genomföras. Kontrollera profil, källor och behörighet.',
   'completeness-review': 'Den mänskliga kompletthetsgranskningen kunde inte sparas.',
+  'referral-create': 'Remissen kunde inte skapas.',
+  'referral-recipient': 'Remissmottagaren kunde inte läggas till.',
+  'referral-queue': 'Leveransen kunde inte köas. Kontrollera kanal och mottagaradress.',
+  'referral-response': 'Remissvaret kunde inte registreras.',
+  'referral-followup': 'Uppföljningen kunde inte köas.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -82,6 +93,11 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'document-metadata': 'Dokumentets metadata och informationsklass har uppdaterats.',
   completeness: 'Kompletthetsbedömningen har körts och sparats med evidens.',
   'completeness-review': 'Den mänskliga kompletthetsgranskningen har sparats.',
+  'referral-created': 'Remissen har skapats.',
+  'referral-recipient': 'Remissmottagaren har lagts till.',
+  'referral-queued': 'Leveransen är köad. Den markeras inte som skickad förrän provider bekräftar.',
+  'referral-response': 'Remissvaret har registrerats.',
+  'referral-followup': 'Uppföljningen är köad.',
 };
 
 export default async function CaseWorkspacePage({
@@ -113,7 +129,10 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const completeness = await loadCaseCompleteness(tenant, caseId, header.authority_id);
+  const [completeness, referrals] = await Promise.all([
+    loadCaseCompleteness(tenant, caseId, header.authority_id),
+    loadCaseReferrals(tenant, caseId),
+  ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
   const errorMessage =
