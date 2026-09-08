@@ -62,7 +62,7 @@ export default async function TenantLogin({
   }
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Logga in</h1>
       <p className="meta">
         Inloggning sker mot {tenant.tenantSlug}s konfigurerade identitetsleverantör. Sessionen är

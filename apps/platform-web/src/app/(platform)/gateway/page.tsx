@@ -5,7 +5,7 @@
  */
 export default function AppGateway() {
   return (
-    <main>
+    <main id="innehall">
       <h1>Välj kommun</h1>
       <p>
         Logga in för att se de kommuner där du har en verifierad behörighet. Ärendedata öppnas

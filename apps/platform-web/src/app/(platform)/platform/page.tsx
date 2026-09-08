@@ -4,7 +4,7 @@
  */
 export default function PlatformAdmin() {
   return (
-    <main>
+    <main id="innehall">
       <h1>Plattformsadministration</h1>
       <p>
         Tenantregister, domänstatus, provisionering och driftsläge. Ingen stående läsåtkomst till

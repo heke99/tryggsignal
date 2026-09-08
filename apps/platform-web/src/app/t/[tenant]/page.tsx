@@ -4,7 +4,7 @@ export default async function TenantEntry() {
   const tenant = await currentTenant();
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Kommunportal</h1>
       <p>Konfigurerad ingång för {tenant.tenantSlug}.</p>
       <div className="card">

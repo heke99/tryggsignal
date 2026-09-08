@@ -9,9 +9,16 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts"
   },
   "dependencies": {
-    "@tryggsignal/observability": "workspace:*"
+    "@tryggsignal/observability": "workspace:*",
+    "pg": "8.13.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.11.10",
+    "tsx": "4.19.2"
   }
 }

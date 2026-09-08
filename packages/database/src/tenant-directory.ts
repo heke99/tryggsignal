@@ -5,6 +5,7 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
+  HostLookup,
   TenantDeploymentRecord,
   TenantDirectory,
   TenantDomainRecord,
@@ -61,6 +62,11 @@ const toDeployment = (row: DeploymentRow): TenantDeploymentRecord => ({
 export class ControlPlaneTenantDirectory implements TenantDirectory {
   constructor(private readonly client: SupabaseClient) {}
 
+  /** Subclasses call RPCs on the same connection. */
+  protected get rpcClient(): SupabaseClient {
+    return this.client;
+  }
+
   async findDomain(normalizedHostname: string): Promise<TenantDomainRecord | null> {
     const { data, error } = await this.client
       .schema('platform')
@@ -107,6 +113,56 @@ export class ControlPlaneTenantDirectory implements TenantDirectory {
       brandingVersion: data.branding_version,
       authConfigurationReference: data.auth_configuration_reference,
       deployment: toDeployment(deploymentRow),
+    };
+  }
+}
+
+interface HostLookupRow {
+  domain_id: string;
+  domain_type: TenantDomainRecord['domainType'];
+  domain_status: TenantDomainRecord['status'];
+  tenant_id: string | null;
+  tenant_slug: string | null;
+  tenant_status: TenantRecord['status'] | null;
+  canonical_hostname: string | null;
+  branding_version: number | null;
+  auth_configuration_reference: string | null;
+  deployment_id: string | null;
+  deployment_status: string | null;
+  deployment_health_status: string | null;
+  data_plane_reference: string | null;
+}
+
+/**
+ * Resolves a hostname through `public.resolve_tenant_host`.
+ *
+ * The `platform` schema is not exposed through PostgREST, and must not be: the
+ * browser key would then reach `tenant_deployments`, which carries a key and a
+ * credential reference per municipality. The function is SECURITY DEFINER and
+ * returns only the routing fields, in one round trip (masterplan 172/173/185).
+ */
+export class ControlPlaneHostDirectory extends ControlPlaneTenantDirectory {
+  async lookupHost(normalizedHostname: string): Promise<HostLookup | null> {
+    const { data, error } = await this.rpcClient
+      .rpc('resolve_tenant_host', { p_hostname: normalizedHostname })
+      .maybeSingle<HostLookupRow>();
+
+    if (error !== null) throw new Error(`resolve_tenant_host failed: ${error.message}`);
+    if (data === null) return null;
+
+    return {
+      domainId: data.domain_id,
+      domainType: data.domain_type,
+      domainStatus: data.domain_status,
+      tenantId: data.tenant_id,
+      tenantSlug: data.tenant_slug,
+      tenantStatus: data.tenant_status,
+      canonicalHostname: data.canonical_hostname,
+      brandingVersion: data.branding_version,
+      authConfigurationReference: data.auth_configuration_reference,
+      deploymentId: data.deployment_id,
+      deploymentStatus: data.deployment_status,
+      dataPlaneReference: data.data_plane_reference,
     };
   }
 }

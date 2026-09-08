@@ -54,7 +54,7 @@ export default async function ControlTower() {
   const tower = await loadControlTower(tenant);
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Kontrolltorn</h1>
       {!tower.available && (
         <div className="card" role="status">

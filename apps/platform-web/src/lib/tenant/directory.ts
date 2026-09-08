@@ -1,6 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
-import { ControlPlaneTenantDirectory } from '@tryggsignal/database';
-import type { TenantDirectory, TenantDomainRecord, TenantRecord } from '@tryggsignal/tenancy';
+import { ControlPlaneHostDirectory } from '@tryggsignal/database';
+import type {
+  HostLookup,
+  TenantDirectory,
+  TenantDomainRecord,
+  TenantRecord,
+} from '@tryggsignal/tenancy';
 
 /**
  * Masterplan 185: tenant routing must not add a database round trip to every
@@ -19,8 +24,19 @@ interface CacheEntry<T> {
 class CachedDirectory implements TenantDirectory {
   private readonly domains = new Map<string, CacheEntry<TenantDomainRecord | null>>();
   private readonly tenants = new Map<string, CacheEntry<TenantRecord | null>>();
+  private readonly hosts = new Map<string, CacheEntry<HostLookup | null>>();
 
-  constructor(private readonly inner: TenantDirectory) {}
+  constructor(private readonly inner: ControlPlaneHostDirectory) {}
+
+  async lookupHost(normalizedHostname: string): Promise<HostLookup | null> {
+    const cached = CachedDirectory.read(this.hosts, normalizedHostname);
+    if (cached !== undefined) return cached.value;
+    return CachedDirectory.write(
+      this.hosts,
+      normalizedHostname,
+      await this.inner.lookupHost(normalizedHostname),
+    );
+  }
 
   private static read<T>(
     store: Map<string, CacheEntry<T>>,
@@ -88,6 +104,6 @@ export function tenantDirectory(): TenantDirectory {
   const client = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  cached = new CachedDirectory(new ControlPlaneTenantDirectory(client));
+  cached = new CachedDirectory(new ControlPlaneHostDirectory(client));
   return cached;
 }

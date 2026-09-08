@@ -15,7 +15,7 @@ export default async function SignOut() {
   const tenant = await currentTenant();
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Logga ut</h1>
       <p className="meta">Sessionen för {tenant.resolvedHostname} avslutas.</p>
       <form action={submit} className="card">

@@ -6,7 +6,7 @@ export default async function DomainNotFound() {
   const reason = store.get('x-ts-rejection') ?? 'UNKNOWN_DOMAIN';
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Domänen är inte aktiverad</h1>
       <p>
         Den här adressen är inte kopplad till en verifierad och aktiv kommunportal i Tryggsignal.

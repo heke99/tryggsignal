@@ -101,8 +101,36 @@ export type Resolution =
       readonly hostname: string | null;
     };
 
+/**
+ * What the control plane knows about one hostname, as far as routing is
+ * concerned. Deliberately excludes the deployment's keys and credential
+ * reference: routing decides which municipality a request belongs to, it does
+ * not open a connection (masterplan 172/173).
+ */
+export interface HostLookup {
+  readonly domainId: string;
+  readonly domainType: DomainType;
+  readonly domainStatus: DomainStatus;
+  readonly tenantId: string | null;
+  readonly tenantSlug: string | null;
+  readonly tenantStatus: TenantStatus | null;
+  readonly canonicalHostname: string | null;
+  readonly brandingVersion: number | null;
+  readonly authConfigurationReference: string | null;
+  readonly deploymentId: string | null;
+  readonly deploymentStatus: string | null;
+  readonly dataPlaneReference: string | null;
+}
+
 /** Port implemented by the control-plane directory (Supabase, cache, or test double). */
 export interface TenantDirectory {
   findDomain(normalizedHostname: string): Promise<TenantDomainRecord | null>;
   findTenant(tenantId: string): Promise<TenantRecord | null>;
+  /**
+   * Resolves a hostname in one round trip. Implementations that can do this
+   * should: the proxy runs on every request, so two lookups per request is a
+   * cost paid by every page view (masterplan 185). The resolver falls back to
+   * `findDomain` + `findTenant` when it is absent.
+   */
+  lookupHost?(normalizedHostname: string): Promise<HostLookup | null>;
 }

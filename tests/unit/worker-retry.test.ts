@@ -1,34 +1,66 @@
 import { describe, expect, it } from 'vitest';
 import {
-  assertEnvelope,
   DEFAULT_RETRY_POLICY,
   DURABLE_QUEUES,
+  InvalidEnvelopeError,
   nextRetry,
+  parseEnvelope,
   QUEUES,
-  type JobEnvelope,
 } from '@tryggsignal/worker';
 
-const envelope: JobEnvelope = {
-  jobId: 'job-1',
-  type: 'document-processing',
-  tenantContext: 'tenant-mjolby',
-  authorityContext: 'authority-bygg',
-  correlationId: 'corr-1',
-  causationId: null,
-  idempotencyKey: 'doc-42-v1',
-  payload: {},
+/** The envelope exactly as `config.enqueue_job` writes it. */
+const raw = {
+  job_id: '11111111-1111-4111-8111-111111111111',
+  type: 'document_processing',
+  tenant_context: 'tenant-mjolby',
+  authority_context: '22222222-2222-4222-8222-222222222222',
+  correlation_id: '33333333-3333-4333-8333-333333333333',
+  causation_id: null,
+  idempotency_key: 'doc-42-v1',
+  payload: { document_id: 42 },
   attempt: 1,
-  createdAt: '2026-09-07T00:00:00Z',
+  created_at: '2026-09-07T00:00:00Z',
 };
 
 describe('job envelope (masterplan 43)', () => {
-  it('accepts a complete envelope', () => {
-    expect(() => assertEnvelope(envelope)).not.toThrow();
+  it('parses the snake_case envelope the database writes', () => {
+    const envelope = parseEnvelope('document_processing', raw);
+    expect(envelope).toMatchObject({
+      jobId: raw.job_id,
+      type: 'document_processing',
+      tenantContext: 'tenant-mjolby',
+      authorityContext: raw.authority_context,
+      correlationId: raw.correlation_id,
+      causationId: null,
+      idempotencyKey: 'doc-42-v1',
+      attempt: 1,
+      queue: 'document_processing',
+    });
   });
 
   it('rejects an envelope without tenant context or idempotency key', () => {
-    expect(() => assertEnvelope({ ...envelope, tenantContext: '' })).toThrow(/tenantContext/);
-    expect(() => assertEnvelope({ ...envelope, idempotencyKey: '' })).toThrow(/idempotencyKey/);
+    expect(() => parseEnvelope('document_processing', { ...raw, tenant_context: '' })).toThrow(
+      /tenant_context/,
+    );
+    expect(() => parseEnvelope('document_processing', { ...raw, idempotency_key: null })).toThrow(
+      /idempotency_key/,
+    );
+  });
+
+  it('rejects a queue name that does not exist', () => {
+    expect(() => parseEnvelope('document-processing', raw)).toThrow(InvalidEnvelopeError);
+  });
+
+  it('rejects a payload that is not an object', () => {
+    expect(() => parseEnvelope('document_processing', { ...raw, payload: 'oops' })).toThrow(
+      /payload/,
+    );
+  });
+
+  it('defaults a missing payload rather than failing the job', () => {
+    const { payload, ...withoutPayload } = raw;
+    expect(payload).toBeDefined();
+    expect(parseEnvelope('document_processing', withoutPayload).payload).toEqual({});
   });
 });
 
@@ -56,7 +88,7 @@ describe('retry policy (masterplan 67)', () => {
 
 describe('queue catalog (masterplan 42)', () => {
   it('keeps legally critical queues durable', () => {
-    for (const queue of ['document-processing', 'integration-inbound', 'migration'] as const) {
+    for (const queue of ['document_processing', 'integration_inbound', 'migration'] as const) {
       expect(DURABLE_QUEUES.has(queue)).toBe(true);
     }
     expect(QUEUES).toHaveLength(10);

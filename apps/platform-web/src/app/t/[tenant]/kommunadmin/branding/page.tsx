@@ -23,7 +23,7 @@ export default async function BrandingAdmin() {
   const validation = validateBranding(draft);
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Branding</h1>
       <p>
         Kommunens profil sätts med designtokens — färger, logotyper, namn och länkar. Egen

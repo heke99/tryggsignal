@@ -1,6 +1,6 @@
 import { normalizeHostname } from './hostname';
 import { SERVABLE_DOMAIN_STATUSES } from './types';
-import type { PlatformSurface, Resolution, TenantDirectory } from './types';
+import type { HostLookup, PlatformSurface, Resolution, TenantDirectory } from './types';
 
 /**
  * Masterplan 157–159: reserved exact hosts are resolved before wildcard tenant
@@ -50,6 +50,56 @@ export class TenantResolver {
       return { kind: 'PLATFORM', surface: platform, hostname };
     }
 
+    const lookupHost = this.directory.lookupHost;
+    if (lookupHost === undefined) return this.resolveByRecords(hostname);
+    return this.decide(hostname, await lookupHost.call(this.directory, hostname));
+  }
+
+  /**
+   * The single-round-trip path. The control plane reports statuses; the decision
+   * of what each status means stays here, so the two paths cannot disagree.
+   */
+  private decide(hostname: string, lookup: HostLookup | null): Resolution {
+    if (lookup === null) {
+      return { kind: 'REJECTED', reason: 'UNKNOWN_DOMAIN', hostname };
+    }
+    if (!SERVABLE_DOMAIN_STATUSES.has(lookup.domainStatus)) {
+      return { kind: 'REJECTED', reason: 'DOMAIN_NOT_ACTIVE', hostname };
+    }
+    if (
+      lookup.tenantId === null ||
+      lookup.tenantSlug === null ||
+      lookup.tenantStatus !== 'ACTIVE'
+    ) {
+      return { kind: 'REJECTED', reason: 'TENANT_NOT_ACTIVE', hostname };
+    }
+    if (
+      lookup.deploymentId === null ||
+      lookup.dataPlaneReference === null ||
+      lookup.deploymentStatus !== 'ACTIVE'
+    ) {
+      return { kind: 'REJECTED', reason: 'DEPLOYMENT_UNAVAILABLE', hostname };
+    }
+
+    return {
+      kind: 'TENANT',
+      context: {
+        tenantId: lookup.tenantId,
+        tenantSlug: lookup.tenantSlug,
+        domainId: lookup.domainId,
+        domainType: lookup.domainType,
+        canonicalDomain: lookup.canonicalHostname ?? hostname,
+        brandingVersion: lookup.brandingVersion ?? 0,
+        deploymentId: lookup.deploymentId,
+        dataPlaneReference: lookup.dataPlaneReference,
+        authConfigurationReference: lookup.authConfigurationReference ?? '',
+        resolvedHostname: hostname,
+      },
+    };
+  }
+
+  /** Two-lookup path, for directories that do not implement `lookupHost`. */
+  private async resolveByRecords(hostname: string): Promise<Resolution> {
     const domain = await this.directory.findDomain(hostname);
     if (domain === null) {
       return { kind: 'REJECTED', reason: 'UNKNOWN_DOMAIN', hostname };

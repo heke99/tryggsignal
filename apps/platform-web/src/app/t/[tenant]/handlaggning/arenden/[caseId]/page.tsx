@@ -29,7 +29,7 @@ export default async function CaseWorkspacePage({
 
   if (workspace.header === null) {
     return (
-      <main>
+      <main id="innehall">
         <h1>Ärende</h1>
         <div className="card" role="status">
           <p>{workspace.reason ?? 'Ärendet kunde inte visas.'}</p>
@@ -41,7 +41,7 @@ export default async function CaseWorkspacePage({
   const header = workspace.header;
 
   return (
-    <main>
+    <main id="innehall">
       <h1>
         {header.case_number} — {header.title}
       </h1>

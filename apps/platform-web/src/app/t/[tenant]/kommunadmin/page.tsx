@@ -4,7 +4,7 @@ export default async function Page() {
   const tenant = await currentTenant();
 
   return (
-    <main>
+    <main id="innehall">
       <h1>Kommunadmin</h1>
       <p>
         Organisation, roller, branding, domäner och integrationer för kommunens administratörer.
