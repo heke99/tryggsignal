@@ -3,3 +3,5 @@ export * from './idempotency';
 export * from './conflict';
 export * from './adapters';
 export * from './vercel-domains';
+export * from './supabase-management';
+export * from './provisioning-orchestrator';

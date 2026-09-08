@@ -53,21 +53,35 @@ do $$
 declare v_status platform.tenant_status;
 begin
   insert into platform.tenant_domains (
-    tenant_id, hostname, normalized_hostname, domain_type, status, is_canonical,
+    tenant_id, hostname, normalized_hostname, domain_type, status, is_canonical, is_fallback,
     ownership_status, dns_status, tls_status
   )
   values ((select v from t where k = 'tenant'), 'provkommun.tryggsignal.se',
-          'provkommun.tryggsignal.se', 'PLATFORM_SUBDOMAIN', 'ACTIVE', true,
+          'provkommun.tryggsignal.se', 'PLATFORM_SUBDOMAIN', 'ACTIVE', true, true,
           'VERIFIED', 'OK', 'ISSUED');
 
   insert into platform.tenant_deployments (
     tenant_id, environment, supabase_project_ref, supabase_url, publishable_key,
-    privileged_credential_reference, schema_version, status
+    privileged_credential_reference, schema_version, status, health_status, last_health_check_at
   )
   values ((select v from t where k = 'tenant'), 'PRODUCTION', 'provref',
-          'https://provref.supabase.co', 'sb_publishable_x', 'tenant/prov/service', '1', 'ACTIVE');
+          'https://provref.supabase.co', 'sb_publishable_x', 'tenant/prov/service', '1', 'ACTIVE',
+          'HEALTHY', now());
+
+  -- READY now requires branding to exist. Use a temporary fixture version here;
+  -- the dedicated branding tests below still own version 1 and its publish flow.
+  insert into platform.tenant_branding (
+    tenant_id, version, display_name, primary_color, contrast_validation_status
+  )
+  values (
+    (select v from t where k = 'tenant'), 999, 'Provisioning readiness fixture',
+    '#14532d', 'PASSED'
+  );
 
   perform platform.advance_provisioning((select v from t where k = 'run'), 'READY');
+
+  delete from platform.tenant_branding
+  where tenant_id = (select v from t where k = 'tenant') and version = 999;
 
   select status into v_status from platform.tenants where id = (select v from t where k = 'tenant');
   if v_status <> 'ACTIVE' then raise exception 'Tenant was not activated, status %', v_status; end if;
