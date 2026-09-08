@@ -2,11 +2,21 @@ import Image from 'next/image';
 import type { Metadata } from 'next';
 import { cache, type CSSProperties } from 'react';
 import { brandingCssVariableMap } from '@tryggsignal/tenancy';
+import type { TenantContext } from '@tryggsignal/tenancy';
 import { currentTenant } from '@/lib/tenant/context';
-import { resolvePublishedBranding } from '@/lib/tenant/branding';
+import {
+  resolvePublishedBranding,
+  type TenantBrandingView,
+} from '@/lib/tenant/branding';
 
-const currentTenantBranding = cache(async () => {
-  const { tenant, branding } = await currentTenantBranding();
+interface TenantBrandingContext {
+  readonly tenant: TenantContext;
+  readonly branding: TenantBrandingView;
+}
+
+const currentTenantBranding = cache(async (): Promise<TenantBrandingContext> => {
+  const tenant = await currentTenant();
+  const branding = await resolvePublishedBranding(tenant);
   return { tenant, branding };
 });
 
@@ -32,8 +42,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * into this segment (masterplan 159).
  */
 export default async function TenantLayout({ children }: { children: React.ReactNode }) {
-  const tenant = await currentTenant();
-  const branding = await resolvePublishedBranding(tenant);
+  const { tenant, branding } = await currentTenantBranding();
   const style = brandingCssVariableMap(branding) as CSSProperties;
 
   return (
