@@ -117,6 +117,9 @@ importers:
       '@tryggsignal/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@tryggsignal/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@tryggsignal/marketing':
         specifier: workspace:*
         version: link:../../packages/marketing
