@@ -109,7 +109,9 @@ export async function loadCitizenCases(context: TenantContext): Promise<CitizenC
   const result = await client
     .schema('core')
     .from('cases')
-    .select('id, case_number, title, process_type, status, phase, created_at, updated_at, decided_at')
+    .select(
+      'id, case_number, title, process_type, status, phase, created_at, updated_at, decided_at',
+    )
     .order('updated_at', { ascending: false })
     .limit(200);
 
@@ -123,17 +125,19 @@ export async function loadCitizenCases(context: TenantContext): Promise<CitizenC
 
   return {
     available: true,
-    rows: ((result.data ?? []) as Array<{
-      id: string;
-      case_number: string;
-      title: string;
-      process_type: string;
-      status: string;
-      phase: string;
-      created_at: string;
-      updated_at: string;
-      decided_at: string | null;
-    }>).map((row) => ({
+    rows: (
+      (result.data ?? []) as Array<{
+        id: string;
+        case_number: string;
+        title: string;
+        process_type: string;
+        status: string;
+        phase: string;
+        created_at: string;
+        updated_at: string;
+        decided_at: string | null;
+      }>
+    ).map((row) => ({
       id: row.id,
       caseNumber: row.case_number,
       title: row.title,
@@ -162,12 +166,14 @@ export async function loadCitizenApplicationProfiles(
 
   if (result.error !== null) return [];
 
-  return ((result.data ?? []) as Array<{
-    id: string;
-    process_type: string;
-    display_name: string;
-    description: string | null;
-  }>).map((row) => ({
+  return (
+    (result.data ?? []) as Array<{
+      id: string;
+      process_type: string;
+      display_name: string;
+      description: string | null;
+    }>
+  ).map((row) => ({
     id: row.id,
     processType: row.process_type,
     displayName: row.display_name,
@@ -195,7 +201,9 @@ export async function loadCitizenCaseDetail(
   const caseResult = await client
     .schema('core')
     .from('cases')
-    .select('id, case_number, title, process_type, status, phase, created_at, updated_at, decided_at')
+    .select(
+      'id, case_number, title, process_type, status, phase, created_at, updated_at, decided_at',
+    )
     .eq('id', caseId)
     .maybeSingle<{
       id: string;
@@ -321,13 +329,15 @@ export async function loadCitizenCaseDetail(
       decidedAt: header.decided_at,
     },
     relationship: partyResult.data?.relationship ?? null,
-    history: ((historyResult.data ?? []) as Array<{
-      from_status: string | null;
-      to_status: string;
-      from_phase: string | null;
-      to_phase: string;
-      changed_at: string;
-    }>).map((row) => ({
+    history: (
+      (historyResult.data ?? []) as Array<{
+        from_status: string | null;
+        to_status: string;
+        from_phase: string | null;
+        to_phase: string;
+        changed_at: string;
+      }>
+    ).map((row) => ({
       fromStatus: row.from_status,
       toStatus: row.to_status,
       fromPhase: row.from_phase,
@@ -351,13 +361,15 @@ export async function loadCitizenCaseDetail(
           createdAt: version.created_at,
         })),
     })),
-    messages: ((messagesResult.data ?? []) as Array<{
-      id: string;
-      direction: string;
-      subject: string | null;
-      body: string | null;
-      created_at: string;
-    }>).map((row) => ({
+    messages: (
+      (messagesResult.data ?? []) as Array<{
+        id: string;
+        direction: string;
+        subject: string | null;
+        body: string | null;
+        created_at: string;
+      }>
+    ).map((row) => ({
       id: row.id,
       direction: row.direction,
       subject: row.subject,

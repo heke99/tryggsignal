@@ -22,9 +22,7 @@ export default async function CitizenApplicationPage({
     searchParams,
   ]);
   const errorMessage =
-    query.error === undefined
-      ? null
-      : (ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.validation);
+    query.error === undefined ? null : (ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.validation);
 
   return (
     <main id="innehall">
@@ -111,12 +109,7 @@ export default async function CitizenApplicationPage({
 
             <div className="form-field form-field-wide">
               <label htmlFor="citizen-description">Beskrivning</label>
-              <textarea
-                id="citizen-description"
-                name="description"
-                rows={7}
-                maxLength={10000}
-              />
+              <textarea id="citizen-description" name="description" rows={7} maxLength={10000} />
             </div>
 
             <div className="form-actions form-field-wide">

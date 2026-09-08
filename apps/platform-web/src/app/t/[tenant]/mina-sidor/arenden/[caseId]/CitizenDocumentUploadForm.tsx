@@ -123,12 +123,7 @@ export function CitizenDocumentUploadForm({ caseId }: { readonly caseId: string 
       </div>
       <div className="form-field form-field-wide">
         <label htmlFor="citizen-document-description">Beskrivning</label>
-        <textarea
-          id="citizen-document-description"
-          name="description"
-          rows={3}
-          maxLength={10000}
-        />
+        <textarea id="citizen-document-description" name="description" rows={3} maxLength={10000} />
       </div>
       <div className="form-field form-field-wide">
         <label htmlFor="citizen-document-file">Fil</label>

@@ -41,9 +41,7 @@ export async function requireTenantUserType(
   returnTo: string,
 ): Promise<void> {
   const client = await authenticatedTenantClient(context, returnTo);
-  const { data: actorId, error: actorError } = await client
-    .schema('authz')
-    .rpc('current_user_id');
+  const { data: actorId, error: actorError } = await client.schema('authz').rpc('current_user_id');
 
   if (actorError !== null || typeof actorId !== 'string' || actorId.length === 0) {
     redirect('/login?error=session');

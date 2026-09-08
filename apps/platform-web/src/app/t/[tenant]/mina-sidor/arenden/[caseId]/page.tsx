@@ -33,11 +33,7 @@ export default async function CitizenCasePage({
   params: Promise<{ caseId: string }>;
   searchParams: Promise<{ error?: string; ok?: string }>;
 }) {
-  const [{ caseId }, query, tenant] = await Promise.all([
-    params,
-    searchParams,
-    currentTenant(),
-  ]);
+  const [{ caseId }, query, tenant] = await Promise.all([params, searchParams, currentTenant()]);
   const detail = await loadCitizenCaseDetail(tenant, caseId);
 
   if (!detail.available || detail.header === null) {
@@ -62,9 +58,7 @@ export default async function CitizenCasePage({
       ? null
       : (ERROR_MESSAGES[query.error] ?? 'Åtgärden kunde inte genomföras.');
   const successMessage =
-    query.ok === undefined
-      ? null
-      : (SUCCESS_MESSAGES[query.ok] ?? 'Åtgärden är genomförd.');
+    query.ok === undefined ? null : (SUCCESS_MESSAGES[query.ok] ?? 'Åtgärden är genomförd.');
 
   return (
     <main id="innehall">

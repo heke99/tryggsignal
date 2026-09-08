@@ -852,15 +852,13 @@ export default async function CaseWorkspacePage({
                     className="button-secondary"
                     disabled={
                       !doc.portal_visible &&
-                      (doc.information_class === 'RESTRICTED' ||
-                        doc.information_class === 'SECRET')
+                      (doc.information_class === 'RESTRICTED' || doc.information_class === 'SECRET')
                     }
                   >
                     {doc.portal_visible ? 'Dölj från Mina sidor' : 'Publicera till Mina sidor'}
                   </button>
                   {!doc.portal_visible &&
-                  (doc.information_class === 'RESTRICTED' ||
-                    doc.information_class === 'SECRET') ? (
+                  (doc.information_class === 'RESTRICTED' || doc.information_class === 'SECRET') ? (
                     <span className="meta">
                       Ändra informationsklass efter saklig sekretessbedömning innan publicering.
                     </span>

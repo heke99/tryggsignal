@@ -5,8 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { currentTenant } from '@/lib/tenant/context';
 import { tenantClient } from '@/lib/data/client';
 
-const UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const RELATIONSHIPS = new Set(['APPLICANT', 'REPRESENTATIVE']);
 
 function field(formData: FormData, name: string): string {
