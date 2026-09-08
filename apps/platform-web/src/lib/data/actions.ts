@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { currentTenant } from '@/lib/tenant/context';
 import { tenantClient } from '@/lib/data/client';
+import { resolveTenantRuntime } from '@/lib/tenant/runtime';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROCESS_TYPES = new Set([
@@ -25,6 +26,9 @@ const PARTY_RELATIONSHIPS = new Set([
   'CONTROL_RESPONSIBLE',
   'OTHER',
 ]);
+const INFORMATION_CLASSES = new Set(['PUBLIC', 'INTERNAL', 'RESTRICTED', 'SECRET']);
+const SHA256 = /^[0-9a-f]{64}$/;
+const MAX_DOCUMENT_BYTES = 200 * 1024 * 1024;
 
 function field(formData: FormData, name: string): string {
   return String(formData.get(name) ?? '').trim();
@@ -448,4 +452,376 @@ export async function registerLocalPropertyAction(formData: FormData): Promise<v
 
   revalidatePath(detailPath(caseId));
   redirect(`${detailPath(caseId)}?ok=property-registered#fastighet`);
+}
+
+interface PrepareCaseDocumentInput {
+  readonly caseId: string;
+  readonly documentType: string;
+  readonly title: string;
+  readonly description: string;
+  readonly informationClass: string;
+  readonly secrecyLevel: number;
+  readonly originalFilename: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly sha256: string;
+}
+
+interface PrepareDocumentVersionInput {
+  readonly caseId: string;
+  readonly documentId: string;
+  readonly originalFilename: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number;
+  readonly sha256: string;
+}
+
+interface PreparedDocumentUpload {
+  readonly caseId: string;
+  readonly documentId: string;
+  readonly documentVersionId: string;
+  readonly version: number;
+  readonly bucket: string;
+  readonly path: string;
+  readonly token: string;
+  readonly supabaseUrl: string;
+  readonly publishableKey: string;
+}
+
+interface PreparedUploadRpc {
+  readonly document_id?: unknown;
+  readonly document_version_id?: unknown;
+  readonly version?: unknown;
+  readonly bucket?: unknown;
+  readonly path?: unknown;
+}
+
+function validUploadMetadata(
+  originalFilename: string,
+  mimeType: string,
+  sizeBytes: number,
+  sha256: string,
+): boolean {
+  return (
+    originalFilename.length >= 1 &&
+    originalFilename.length <= 255 &&
+    mimeType.length >= 3 &&
+    mimeType.length <= 200 &&
+    Number.isInteger(sizeBytes) &&
+    sizeBytes > 0 &&
+    sizeBytes <= MAX_DOCUMENT_BYTES &&
+    SHA256.test(sha256)
+  );
+}
+
+function parsePreparedUpload(data: unknown): {
+  documentId: string;
+  documentVersionId: string;
+  version: number;
+  bucket: string;
+  path: string;
+} | null {
+  if (typeof data !== 'object' || data === null) return null;
+  const row = data as PreparedUploadRpc;
+  if (
+    typeof row.document_id !== 'string' ||
+    uuid(row.document_id) === null ||
+    typeof row.document_version_id !== 'string' ||
+    uuid(row.document_version_id) === null ||
+    typeof row.version !== 'number' ||
+    !Number.isInteger(row.version) ||
+    row.version < 1 ||
+    row.bucket !== 'quarantine' ||
+    typeof row.path !== 'string' ||
+    row.path.length < 1
+  ) {
+    return null;
+  }
+  return {
+    documentId: row.document_id,
+    documentVersionId: row.document_version_id,
+    version: row.version,
+    bucket: row.bucket,
+    path: row.path,
+  };
+}
+
+async function signPreparedUpload(
+  caseId: string,
+  preparedData: unknown,
+): Promise<PreparedDocumentUpload> {
+  const prepared = parsePreparedUpload(preparedData);
+  if (prepared === null) {
+    throw new Error('Dokumentuppladdningen kunde inte förberedas.');
+  }
+
+  const { context, client } = await authenticatedTenantSession();
+  const [runtime, signed] = await Promise.all([
+    resolveTenantRuntime(context),
+    client.storage.from(prepared.bucket).createSignedUploadUrl(prepared.path),
+  ]);
+
+  if (signed.error !== null || signed.data === null || typeof signed.data.token !== 'string') {
+    await client.schema('documents').rpc('mark_document_upload_failed_for_user', {
+      p_document_version_id: prepared.documentVersionId,
+      p_reason: 'Signed upload URL could not be created',
+    });
+    throw new Error('En säker uppladdningsadress kunde inte skapas.');
+  }
+
+  return {
+    caseId,
+    ...prepared,
+    token: signed.data.token,
+    supabaseUrl: runtime.supabaseUrl,
+    publishableKey: runtime.publishableKey,
+  };
+}
+
+/**
+ * G4: metadata-only server action. The File object itself is intentionally not
+ * accepted here; large files go browser -> Supabase Storage using the signed
+ * token returned after the database authorization succeeds.
+ */
+export async function prepareCaseDocumentUploadAction(
+  input: PrepareCaseDocumentInput,
+): Promise<PreparedDocumentUpload> {
+  const caseId = uuid(input.caseId);
+  const documentType = input.documentType.trim().toUpperCase();
+  const title = input.title.trim();
+  const description = input.description.trim();
+  const informationClass = input.informationClass.trim().toUpperCase();
+  const originalFilename = input.originalFilename.trim();
+  const mimeType = input.mimeType.trim().toLowerCase();
+  const sha256 = input.sha256.trim().toLowerCase();
+
+  if (
+    caseId === null ||
+    documentType.length < 2 ||
+    documentType.length > 80 ||
+    title.length < 2 ||
+    title.length > 240 ||
+    description.length > 10_000 ||
+    !INFORMATION_CLASSES.has(informationClass) ||
+    !Number.isInteger(input.secrecyLevel) ||
+    input.secrecyLevel < 0 ||
+    input.secrecyLevel > 4 ||
+    !validUploadMetadata(originalFilename, mimeType, input.sizeBytes, sha256)
+  ) {
+    throw new Error('Dokumentuppgifterna är ogiltiga.');
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { data, error } = await client
+    .schema('documents')
+    .rpc('prepare_case_document_upload_for_user', {
+      p_case_id: caseId,
+      p_document_type: documentType,
+      p_title: title,
+      p_description: description || null,
+      p_information_class: informationClass,
+      p_secrecy_level: input.secrecyLevel,
+      p_original_filename: originalFilename,
+      p_mime_type: mimeType,
+      p_size_bytes: input.sizeBytes,
+      p_sha256: sha256,
+    });
+
+  if (error !== null) {
+    throw new Error('Dokumentuppladdningen kunde inte auktoriseras.');
+  }
+
+  return signPreparedUpload(caseId, data);
+}
+
+export async function prepareDocumentVersionUploadAction(
+  input: PrepareDocumentVersionInput,
+): Promise<PreparedDocumentUpload> {
+  const caseId = uuid(input.caseId);
+  const documentId = uuid(input.documentId);
+  const originalFilename = input.originalFilename.trim();
+  const mimeType = input.mimeType.trim().toLowerCase();
+  const sha256 = input.sha256.trim().toLowerCase();
+
+  if (
+    caseId === null ||
+    documentId === null ||
+    !validUploadMetadata(originalFilename, mimeType, input.sizeBytes, sha256)
+  ) {
+    throw new Error('Versionsuppgifterna är ogiltiga.');
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { data, error } = await client
+    .schema('documents')
+    .rpc('prepare_new_version_upload_for_user', {
+      p_document_id: documentId,
+      p_original_filename: originalFilename,
+      p_mime_type: mimeType,
+      p_size_bytes: input.sizeBytes,
+      p_sha256: sha256,
+    });
+
+  if (error !== null) {
+    throw new Error('Den nya dokumentversionen kunde inte auktoriseras.');
+  }
+
+  return signPreparedUpload(caseId, data);
+}
+
+export async function confirmDocumentUploadAction(input: {
+  readonly caseId: string;
+  readonly documentVersionId: string;
+}): Promise<void> {
+  const caseId = uuid(input.caseId);
+  const documentVersionId = uuid(input.documentVersionId);
+  if (caseId === null || documentVersionId === null) {
+    throw new Error('Dokumentversionen är ogiltig.');
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('documents').rpc('confirm_document_upload_for_user', {
+    p_document_version_id: documentVersionId,
+  });
+
+  if (error !== null) {
+    throw new Error('Filen laddades upp men kunde inte köas för säkerhetskontroll.');
+  }
+
+  revalidatePath(detailPath(caseId));
+}
+
+export async function markDocumentUploadFailedAction(input: {
+  readonly documentVersionId: string;
+  readonly reason: string;
+}): Promise<void> {
+  const documentVersionId = uuid(input.documentVersionId);
+  const reason = input.reason.trim().slice(0, 1000);
+  if (documentVersionId === null) return;
+
+  const { client } = await authenticatedTenantSession();
+  await client.schema('documents').rpc('mark_document_upload_failed_for_user', {
+    p_document_version_id: documentVersionId,
+    p_reason: reason || 'Upload failed',
+  });
+}
+
+export async function retryDocumentConfirmationAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const documentVersionId = uuid(field(formData, 'documentVersionId'));
+  if (caseId === null || documentVersionId === null) {
+    redirect(
+      caseId === null ? '/handlaggning' : `${detailPath(caseId)}?error=validation#handlingar`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('documents').rpc('confirm_document_upload_for_user', {
+    p_document_version_id: documentVersionId,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=document-confirm#handlingar`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=document-confirmed#handlingar`);
+}
+
+export async function updateDocumentMetadataAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const documentId = uuid(field(formData, 'documentId'));
+  const documentType = field(formData, 'documentType').toUpperCase();
+  const title = field(formData, 'title');
+  const description = field(formData, 'description');
+  const informationClass = field(formData, 'informationClass').toUpperCase();
+  const secrecyLevel = Number(field(formData, 'secrecyLevel'));
+
+  if (
+    caseId === null ||
+    documentId === null ||
+    documentType.length < 2 ||
+    documentType.length > 80 ||
+    title.length < 2 ||
+    title.length > 240 ||
+    description.length > 10_000 ||
+    !INFORMATION_CLASSES.has(informationClass) ||
+    !Number.isInteger(secrecyLevel) ||
+    secrecyLevel < 0 ||
+    secrecyLevel > 4
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#handlingar`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('documents').rpc('update_document_metadata_for_user', {
+    p_document_id: documentId,
+    p_document_type: documentType,
+    p_title: title,
+    p_description: description || null,
+    p_information_class: informationClass,
+    p_secrecy_level: secrecyLevel,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=document-metadata#handlingar`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=document-metadata#handlingar`);
+}
+
+export async function createDocumentDownloadUrlAction(input: {
+  readonly caseId: string;
+  readonly documentVersionId: string;
+}): Promise<string> {
+  const caseId = uuid(input.caseId);
+  const documentVersionId = uuid(input.documentVersionId);
+  if (caseId === null || documentVersionId === null) {
+    throw new Error('Dokumentversionen är ogiltig.');
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { data: version } = await client
+    .schema('documents')
+    .from('document_versions')
+    .select('id, document_id, storage_bucket, storage_path, ingestion_status')
+    .eq('id', documentVersionId)
+    .maybeSingle<{
+      id: string;
+      document_id: string;
+      storage_bucket: string;
+      storage_path: string;
+      ingestion_status: string;
+    }>();
+
+  if (version === null || version.ingestion_status !== 'CLEAN') {
+    throw new Error('Dokumentversionen är inte tillgänglig för hämtning.');
+  }
+
+  const { data: document } = await client
+    .schema('documents')
+    .from('documents')
+    .select('id, case_id')
+    .eq('id', version.document_id)
+    .eq('case_id', caseId)
+    .maybeSingle<{ id: string; case_id: string | null }>();
+
+  if (document === null) {
+    throw new Error('Dokumentversionen är inte tillgänglig för hämtning.');
+  }
+
+  const { data, error } = await client.storage
+    .from(version.storage_bucket)
+    .createSignedUrl(version.storage_path, 120);
+
+  if (error !== null || data === null) {
+    throw new Error('En tidsbegränsad hämtningslänk kunde inte skapas.');
+  }
+
+  return data.signedUrl;
 }

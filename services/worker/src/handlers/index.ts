@@ -11,6 +11,7 @@
 import { ExternalBlockedError, PermanentJobError } from '../errors';
 import type { JobEnvelope } from '../envelope';
 import type { SqlExecutor } from '../pgmq-client';
+import { handleDocumentProcessing } from './document-processing';
 import { handleIntegrationInbound } from './integration-inbound';
 import { handleSearchIndexing } from './search-indexing';
 import { handleWorkflowTimer } from './workflow-timer';
@@ -35,10 +36,7 @@ export const HANDLERS: Readonly<Record<string, TypedHandler>> = {
   report_generation: handleReportGeneration,
   metrics_rollup: handleReportGeneration,
 
-  document_processing: blocked(
-    'EB-08',
-    'no malware-scanning provider, so an upload cannot leave quarantine',
-  ),
+  document_processing: handleDocumentProcessing,
   ai_analysis: blocked('EB-07', 'no AI provider contracted and no data-processing terms'),
   notification: blocked('EB-09', 'no mail provider configured for outbound delivery'),
   archive_generation: blocked('P25', 'the FGS package writer is not implemented'),

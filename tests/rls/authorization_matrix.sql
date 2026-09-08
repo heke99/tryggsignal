@@ -331,56 +331,76 @@ begin
   get diagnostics v_updated = row_count;
   if v_updated <> 0 then raise exception 'worker updated a case in another authority'; end if;
 
-  -- Masterplan 36: a file may only enter through quarantine.
+  -- Phase G4: document writes are command-only. Browser roles may not mutate
+  -- document metadata/version tables directly even when they hold upload rights.
   v_blocked := false;
   begin
-    insert into documents.document_versions (document_id, authority_id, version, sha256, mime_type,
-      size_bytes, storage_bucket, storage_path, ingestion_status)
-    values (v_doc, v_bygg, 9, repeat('a', 64), 'application/pdf', 100,
-            'case-documents', v_bygg::text || '/x/9/f.pdf', 'CLEAN');
-  exception when insufficient_privilege then v_blocked := true;
+    insert into documents.document_versions (
+      document_id, authority_id, version, sha256, mime_type,
+      size_bytes, storage_bucket, storage_path
+    )
+    values (
+      v_doc, v_bygg, 9, repeat('a', 64), 'application/pdf',
+      100, 'quarantine', v_bygg::text || '/direct/9/version'
+    );
+  exception when insufficient_privilege then
+    v_blocked := true;
   end;
-  if not v_blocked then raise exception 'a document version bypassed quarantine'; end if;
-
-  insert into documents.document_versions (document_id, authority_id, version, sha256, mime_type,
-    size_bytes, storage_bucket, storage_path)
-  values (v_doc, v_bygg, 1, repeat('b', 64), 'application/pdf', 100,
-          'quarantine', v_bygg::text || '/y/1/f.pdf');
+  if not v_blocked then
+    raise exception 'worker bypassed the document upload command boundary';
+  end if;
 
   reset role;
   execute 'set local request.jwt.claims = ' || quote_literal('{}');
 
-  -- Masterplan 96: an applicant may add a document to their own case, but never
-  -- to a secrecy-classified one.
   set local role authenticated;
-  execute format('set local request.jwt.claims = %L', json_build_object('sub', v_applicant_sub, 'role', 'authenticated')::text);
-
-  insert into documents.document_versions (document_id, authority_id, version, sha256, mime_type,
-    size_bytes, storage_bucket, storage_path)
-  values (v_doc, v_bygg, 2, repeat('d', 64), 'application/pdf', 100,
-          'quarantine', v_bygg::text || '/z/2/f.pdf');
+  execute format(
+    'set local request.jwt.claims = %L',
+    json_build_object('sub', v_applicant_sub, 'role', 'authenticated')::text
+  );
 
   v_blocked := false;
   begin
-    insert into documents.document_versions (document_id, authority_id, version, sha256, mime_type,
-      size_bytes, storage_bucket, storage_path)
-    values (v_secret_doc, v_bygg, 1, repeat('e', 64), 'application/pdf', 100,
-            'quarantine', v_bygg::text || '/s/1/f.pdf');
-  exception when insufficient_privilege then v_blocked := true;
+    insert into documents.document_versions (
+      document_id, authority_id, version, sha256, mime_type,
+      size_bytes, storage_bucket, storage_path
+    )
+    values (
+      v_doc, v_bygg, 10, repeat('d', 64), 'application/pdf',
+      100, 'quarantine', v_bygg::text || '/direct/10/version'
+    );
+  exception when insufficient_privilege then
+    v_blocked := true;
   end;
-  if not v_blocked then raise exception 'an applicant added a version to a secrecy-classified document'; end if;
+  if not v_blocked then
+    raise exception 'external applicant bypassed the document upload command boundary';
+  end if;
 
   reset role;
   execute 'set local request.jwt.claims = ' || quote_literal('{}');
 
-  -- Masterplan 35: an original version is immutable.
+  -- Masterplan 35 remains true below the command boundary: a stored version's
+  -- content identity cannot be edited in place by internal database code either.
+  insert into documents.document_versions (
+    document_id, authority_id, version, sha256, mime_type,
+    size_bytes, storage_bucket, storage_path
+  )
+  values (
+    v_doc, v_bygg, 1, repeat('b', 64), 'application/pdf',
+    100, 'quarantine', v_bygg::text || '/' || v_doc::text || '/1/matrix'
+  );
+
   v_blocked := false;
   begin
-    update documents.document_versions set sha256 = repeat('c', 64)
+    update documents.document_versions
+    set sha256 = repeat('c', 64)
     where document_id = v_doc and version = 1;
-  exception when raise_exception then v_blocked := true;
+  exception when raise_exception then
+    v_blocked := true;
   end;
-  if not v_blocked then raise exception 'a document version checksum was mutable'; end if;
+  if not v_blocked then
+    raise exception 'a document version checksum was mutable';
+  end if;
 end;
 $$;
 

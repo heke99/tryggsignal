@@ -239,16 +239,54 @@ interface PropertyRow {
   readonly source_version: string | null;
 }
 
+export interface CaseDocumentVersion {
+  readonly id: string;
+  readonly version: number;
+  readonly sha256: string;
+  readonly mime_type: string;
+  readonly detected_mime_type: string | null;
+  readonly size_bytes: number;
+  readonly original_filename: string | null;
+  readonly ingestion_status: string;
+  readonly rejection_reason: string | null;
+  readonly scanner_provider: string | null;
+  readonly scanner_version: string | null;
+  readonly signature_version: string | null;
+  readonly scan_started_at: string | null;
+  readonly scanned_at: string | null;
+  readonly scan_result: string | null;
+  readonly threat_name: string | null;
+  readonly upload_confirmed_at: string | null;
+  readonly processing_enqueued_at: string | null;
+  readonly created_at: string;
+}
+
+export interface CaseDocument {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string | null;
+  readonly document_type: string;
+  readonly information_class: string;
+  readonly secrecy_level: number;
+  readonly current_version: number;
+  readonly versions: readonly CaseDocumentVersion[];
+}
+
+interface CaseDocumentRow {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string | null;
+  readonly document_type: string;
+  readonly information_class: string;
+  readonly secrecy_level: number;
+  readonly current_version: number;
+}
+
 export interface CaseWorkspace {
   readonly available: boolean;
   readonly reason?: string;
   readonly header: CaseHeader | null;
-  readonly documents: readonly {
-    id: string;
-    title: string;
-    document_type: string;
-    current_version: number;
-  }[];
+  readonly documents: readonly CaseDocument[];
   readonly deadlines: readonly { id: string; name: string; due_at: string; status: string }[];
   readonly history: readonly { id: number; to_status: string; changed_at: string }[];
   readonly workflow: CaseWorkflow | null;
@@ -332,7 +370,9 @@ export async function loadCaseWorkspace(
     session.client
       .schema('documents')
       .from('documents')
-      .select('id, title, document_type, current_version')
+      .select(
+        'id, title, description, document_type, information_class, secrecy_level, current_version',
+      )
       .eq('case_id', caseId)
       .order('created_at', { ascending: false })
       .limit(50),
@@ -550,6 +590,52 @@ export async function loadCaseWorkspace(
     ];
   });
 
+  const documentRows = (documents.data ?? []) as CaseDocumentRow[];
+  const documentIds = documentRows.map((document) => document.id);
+  const versionRows =
+    documentIds.length === 0
+      ? []
+      : ((
+          await session.client
+            .schema('documents')
+            .from('document_versions')
+            .select(
+              'id, document_id, version, sha256, mime_type, detected_mime_type, size_bytes, original_filename, ingestion_status, rejection_reason, scanner_provider, scanner_version, signature_version, scan_started_at, scanned_at, scan_result, threat_name, upload_confirmed_at, processing_enqueued_at, created_at',
+            )
+            .in('document_id', documentIds)
+            .order('version', { ascending: false })
+        ).data ?? []);
+
+  const documentsWithVersions: CaseDocument[] = documentRows.map((document) => ({
+    ...document,
+    versions: versionRows
+      .filter((version) => (version as { document_id: string }).document_id === document.id)
+      .map((version) => {
+        const row = version as CaseDocumentVersion & { document_id: string };
+        return {
+          id: row.id,
+          version: row.version,
+          sha256: row.sha256,
+          mime_type: row.mime_type,
+          detected_mime_type: row.detected_mime_type,
+          size_bytes: Number(row.size_bytes),
+          original_filename: row.original_filename,
+          ingestion_status: row.ingestion_status,
+          rejection_reason: row.rejection_reason,
+          scanner_provider: row.scanner_provider,
+          scanner_version: row.scanner_version,
+          signature_version: row.signature_version,
+          scan_started_at: row.scan_started_at,
+          scanned_at: row.scanned_at,
+          scan_result: row.scan_result,
+          threat_name: row.threat_name,
+          upload_confirmed_at: row.upload_confirmed_at,
+          processing_enqueued_at: row.processing_enqueued_at,
+          created_at: row.created_at,
+        };
+      }),
+  }));
+
   let workflow: CaseWorkflow | null = null;
 
   if (workflowInstance.data !== null) {
@@ -593,7 +679,7 @@ export async function loadCaseWorkspace(
   return {
     available: true,
     header,
-    documents: (documents.data ?? []) as CaseWorkspace['documents'],
+    documents: documentsWithVersions,
     deadlines: (deadlines.data ?? []) as CaseWorkspace['deadlines'],
     history: (history.data ?? []) as CaseWorkspace['history'],
     workflow,

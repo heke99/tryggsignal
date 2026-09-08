@@ -6,3 +6,7 @@ export * from './handler';
 export * from './runner';
 export * from './pgmq-client';
 export * from './handlers';
+
+export * from './storage-reader';
+export * from './scanners';
+export * from './handlers/document-processing';
