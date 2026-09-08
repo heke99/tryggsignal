@@ -119,7 +119,7 @@ end;
 $$;
 
 -- 5. Rerun may refresh the same project but may never silently rebind the tenant.
-do $
+do $$
 declare
   v_tenant uuid := (select v from p39 where k = 'tenant');
   v_blocked boolean := false;
@@ -149,7 +149,7 @@ begin
     raise exception 'P39: failed rebind mutated the canonical project ref';
   end if;
 end;
-$;
+$$;
 
 -- 6. READY remains blocked until verified fallback + healthy data plane exist.
 do $$
