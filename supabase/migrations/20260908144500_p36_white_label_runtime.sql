@@ -444,6 +444,35 @@ grant execute on function public.register_branding_asset(
   uuid, uuid, text, text, text, text, integer, integer, bigint
 ) to service_role;
 
+create or replace function public.discard_branding_asset(
+  p_tenant_id uuid,
+  p_asset_id uuid
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_deleted integer;
+begin
+  delete from platform.branding_assets a
+  where a.id = p_asset_id
+    and a.tenant_id = p_tenant_id
+    and not exists (
+      select 1 from platform.tenant_branding b
+      where b.logo_asset_id = a.id
+         or b.logo_dark_asset_id = a.id
+         or b.favicon_asset_id = a.id
+    );
+  get diagnostics v_deleted = row_count;
+  return v_deleted = 1;
+end;
+$;
+
+revoke all on function public.discard_branding_asset(uuid, uuid) from public;
+grant execute on function public.discard_branding_asset(uuid, uuid) to service_role;
+
 create or replace function public.set_tenant_branding_asset(
   p_tenant_id uuid,
   p_branding_id uuid,
