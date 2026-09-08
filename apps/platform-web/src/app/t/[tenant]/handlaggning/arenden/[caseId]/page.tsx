@@ -1,21 +1,28 @@
 import Link from 'next/link';
 import {
   addCasePartyAction,
+  addDecisionVersionAction,
   addReferralRecipientAction,
   advanceWorkflowAction,
+  approveDecisionAction,
   assignCaseAction,
   closeCaseAction,
+  createDecisionAction,
   createReferralAction,
   evaluateCaseCompletenessAction,
   linkCasePropertyAction,
+  decideDecisionAction,
+  issueDecisionAction,
   queueReferralDeliveryAction,
   queueReferralFollowupAction,
   recordReferralResponseAction,
   registerLocalPropertyAction,
   retryDocumentConfirmationAction,
   reviewCaseCompletenessAction,
+  signDecisionAction,
   setPrimaryPropertyAction,
   setWorkflowPauseAction,
+  submitDecisionReviewAction,
   updateCasePartyRelationshipAction,
   updateDocumentMetadataAction,
   updatePartyContactAction,
@@ -25,6 +32,7 @@ import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUplo
 import { currentTenant } from '@/lib/tenant/context';
 import {
   loadCaseCompleteness,
+  loadCaseDecisions,
   loadCaseReferrals,
   loadCaseWorkspace,
   searchPropertyCandidates,
@@ -75,6 +83,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   'referral-queue': 'Leveransen kunde inte köas. Kontrollera kanal och mottagaradress.',
   'referral-response': 'Remissvaret kunde inte registreras.',
   'referral-followup': 'Uppföljningen kunde inte köas.',
+  'decision-create': 'Beslutet kunde inte skapas.',
+  'decision-version': 'Beslutsversionen kunde inte sparas.',
+  'decision-review': 'Beslutet kunde inte skickas till granskning.',
+  'decision-approve': 'Beslutet kunde inte godkännas. Kontrollera beslutsbehörighet.',
+  'decision-decide': 'Det slutliga beslutet kunde inte registreras.',
+  'decision-sign': 'Signeringsbeviset kunde inte registreras.',
+  'decision-issue': 'Beslutet kunde inte köas för expediering.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -98,6 +113,13 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'referral-queued': 'Leveransen är köad. Den markeras inte som skickad förrän provider bekräftar.',
   'referral-response': 'Remissvaret har registrerats.',
   'referral-followup': 'Uppföljningen är köad.',
+  'decision-created': 'Beslutsutkastet har skapats.',
+  'decision-version': 'En ny beslutsversion har sparats.',
+  'decision-review': 'Beslutet är skickat till granskning.',
+  'decision-approved': 'Beslutet har godkänts av behörig beslutsfattare.',
+  'decision-decided': 'Det slutliga mänskliga beslutet har registrerats.',
+  'decision-signed': 'Signeringsbeviset har registrerats.',
+  'decision-queued': 'Expedieringen är köad och blir inte SENT förrän provider bekräftar.',
 };
 
 export default async function CaseWorkspacePage({
@@ -129,9 +151,10 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const [completeness, referrals] = await Promise.all([
+  const [completeness, referrals, decisions] = await Promise.all([
     loadCaseCompleteness(tenant, caseId, header.authority_id),
     loadCaseReferrals(tenant, caseId),
+    loadCaseDecisions(tenant, caseId),
   ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
