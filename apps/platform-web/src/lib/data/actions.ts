@@ -349,7 +349,6 @@ export async function updatePartyContactAction(formData: FormData): Promise<void
   redirect(`${detailPath(caseId)}?ok=party-contact#parter`);
 }
 
-
 /** Phase G3: link an existing canonical property to a case. */
 export async function linkCasePropertyAction(formData: FormData): Promise<void> {
   const caseId = safeCaseId(formData);
@@ -424,7 +423,9 @@ export async function registerLocalPropertyAction(formData: FormData): Promise<v
     postalTown.length > 120
   ) {
     redirect(
-      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation#fastighet`,
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#fastighet`,
     );
   }
 
