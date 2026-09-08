@@ -202,6 +202,17 @@ export default async function CaseWorkspacePage({
     query.error === undefined ? null : (ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.validation);
   const successMessage =
     query.ok === undefined ? null : (SUCCESS_MESSAGES[query.ok] ?? 'Åtgärden är genomförd.');
+  const cleanDocumentVersions = workspace.documents.flatMap((document) =>
+    document.versions
+      .filter((version) => version.ingestion_status === 'CLEAN')
+      .map((version) => ({
+        documentId: document.id,
+        documentTitle: document.title,
+        versionId: version.id,
+        version: version.version,
+      })),
+  );
+  const finalDecisions = decisions.filter((decision) => decision.status === 'DECIDED');
 
   return (
     <main id="innehall">
