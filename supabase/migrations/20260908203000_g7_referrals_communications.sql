@@ -51,6 +51,14 @@ create index referral_recipients_delivery_idx
   on referral.referral_recipients (delivery_id)
   where delivery_id is not null;
 
+create unique index referral_recipients_party_unique
+  on referral.referral_recipients (referral_id, party_id)
+  where party_id is not null;
+
+create unique index referral_responses_recipient_unique
+  on referral.referral_responses (recipient_id)
+  where recipient_id is not null;
+
 insert into config.scheduled_tasks (key, description, schedule)
 values (
   'referral_overdue_sweep',
