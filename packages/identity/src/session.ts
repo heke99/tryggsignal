@@ -1,6 +1,6 @@
 /**
- * Masterplan 180, 181, 183: host-bound sessions, an explicit central-login
- * handoff, and CSRF protection on the sign-in flow.
+ * Masterplan 180, 181, 183, 203: host-bound sessions, an explicit central-login
+ * handoff, callback isolation, and CSRF protection on the sign-in flow.
  */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { TenantContext } from '@tryggsignal/tenancy';
@@ -40,7 +40,8 @@ function authCookie(
 /**
  * A `__Host-` prefixed cookie may not carry a Domain attribute, so the browser
  * refuses to send it to any other host. That is what stops one municipality's
- * portal from ever seeing another's session.
+ * portal from ever seeing another's session — including custom/fallback hosts
+ * for the same municipality.
  */
 export function sessionCookie(
   context: TenantContext,
@@ -68,13 +69,15 @@ export function clearedRefreshSessionCookie(context: TenantContext): SessionCook
 }
 
 // ---------------------------------------------------------------------------
-// Sign-in state (masterplan 183)
+// Sign-in state (masterplan 183/203)
 // ---------------------------------------------------------------------------
 
 export interface SignInState {
   readonly nonce: string;
   readonly tenantId: string;
   readonly domainId: string;
+  readonly hostname: string;
+  readonly authConfigurationReference: string;
   readonly returnTo: string;
   readonly issuedAt: number;
 }
@@ -97,6 +100,8 @@ export function createSignInState(
     nonce: randomBytes(16).toString('base64url'),
     tenantId: context.tenantId,
     domainId: context.domainId,
+    hostname: context.resolvedHostname,
+    authConfigurationReference: context.authConfigurationReference,
     returnTo: safeReturnTo(returnTo),
     issuedAt: now,
   };
@@ -110,8 +115,8 @@ export function verifySignInState(
   secret: string,
   now: number = Date.now(),
 ): SignInState {
-  const [payload, signature] = state.split('.');
-  if (payload === undefined || signature === undefined) {
+  const [payload, signature, extra] = state.split('.');
+  if (payload === undefined || signature === undefined || extra !== undefined) {
     throw new InvalidSignInStateError('Malformed sign-in state.');
   }
 
@@ -129,11 +134,21 @@ export function verifySignInState(
     throw new InvalidSignInStateError('Sign-in state payload is not readable.');
   }
 
+  if (!Number.isFinite(parsed.issuedAt) || parsed.issuedAt > now + 30_000) {
+    throw new InvalidSignInStateError('Sign-in state timestamp is invalid.');
+  }
   if (now - parsed.issuedAt > STATE_TTL_MS) {
     throw new InvalidSignInStateError('Sign-in state has expired.');
   }
-  if (parsed.tenantId !== context.tenantId || parsed.domainId !== context.domainId) {
-    throw new InvalidSignInStateError('Sign-in state was issued for a different tenant or domain.');
+  if (
+    parsed.tenantId !== context.tenantId ||
+    parsed.domainId !== context.domainId ||
+    parsed.hostname !== context.resolvedHostname ||
+    parsed.authConfigurationReference !== context.authConfigurationReference
+  ) {
+    throw new InvalidSignInStateError(
+      'Sign-in state was issued for a different tenant, domain, host, or auth configuration.',
+    );
   }
   return parsed;
 }
@@ -142,8 +157,16 @@ export function safeReturnTo(candidate: string | null | undefined): string {
   if (candidate == null || candidate.length === 0) return '/';
   if (!candidate.startsWith('/')) return '/';
   if (candidate.startsWith('//') || candidate.startsWith('/\\')) return '/';
-  if (candidate.includes('\n') || candidate.includes('\r')) return '/';
-  return candidate;
+  if (/\p{Cc}/u.test(candidate) || candidate.includes('\\')) return '/';
+
+  try {
+    const base = new URL('https://return.invalid/');
+    const resolved = new URL(candidate, base);
+    if (resolved.origin !== base.origin) return '/';
+    return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+  } catch {
+    return '/';
+  }
 }
 
 export function buildHandoffUrl(
