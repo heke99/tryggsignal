@@ -70,6 +70,9 @@ export default async function ControlTower() {
           <Link className="button-secondary" href="/handlaggning/tillsyn">
             PBL-tillsyn
           </Link>
+          <Link className="button-secondary" href="/handlaggning/ovk">
+            OVK
+          </Link>
           <Link className="button-primary" href="/handlaggning/arenden/nytt">
             Nytt ärende
           </Link>
