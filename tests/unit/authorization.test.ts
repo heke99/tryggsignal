@@ -39,6 +39,11 @@ const buildingCase: ResourceAttributes = {
 };
 
 describe('can() — masterplan 17 ABAC decisions', () => {
+  it('tenant admin holds the explicit branding permission', () => {
+    expect(ROLE_PERMISSIONS.tenant_admin).toContain('branding.manage');
+    expect(ROLE_PERMISSIONS.security_admin).not.toContain('branding.manage');
+  });
+
   it('allows a granted permission inside the assigned scope', () => {
     const decision = can(caseWorker, 'case.update', buildingCase);
     expect(decision.allowed).toBe(true);

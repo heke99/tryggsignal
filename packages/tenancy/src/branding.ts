@@ -6,19 +6,19 @@
 
 export interface BrandingTokens {
   readonly displayName: string;
-  readonly shortName?: string;
+  readonly shortName?: string | undefined;
   readonly primaryColor: string;
-  readonly secondaryColor?: string;
-  readonly accentColor?: string;
-  readonly surfaceVariant?: string;
+  readonly secondaryColor?: string | undefined;
+  readonly accentColor?: string | undefined;
+  readonly surfaceVariant?: string | undefined;
   readonly locale: string;
   readonly showTryggsignalBranding: boolean;
-  readonly supportEmail?: string;
-  readonly privacyUrl?: string;
-  readonly accessibilityStatementUrl?: string;
-  readonly termsUrl?: string;
-  readonly loginHeading?: string;
-  readonly loginSubheading?: string;
+  readonly supportEmail?: string | undefined;
+  readonly privacyUrl?: string | undefined;
+  readonly accessibilityStatementUrl?: string | undefined;
+  readonly termsUrl?: string | undefined;
+  readonly loginHeading?: string | undefined;
+  readonly loginSubheading?: string | undefined;
 }
 
 const HEX = /^#[0-9a-f]{6}$/;
@@ -167,4 +167,17 @@ export function brandingCssVariables(tokens: BrandingTokens): string {
   add('--ts-accent', tokens.accentColor);
   add('--ts-surface', tokens.surfaceVariant);
   return declarations.join(' ');
+}
+
+/** CSS custom properties suitable for React style props or other renderers. */
+export function brandingCssVariableMap(tokens: BrandingTokens): Readonly<Record<string, string>> {
+  const variables: Record<string, string> = {};
+  const add = (name: string, value: string | undefined): void => {
+    if (value !== undefined && HEX.test(value)) variables[name] = value;
+  };
+  add('--ts-primary', tokens.primaryColor);
+  add('--ts-secondary', tokens.secondaryColor);
+  add('--ts-accent', tokens.accentColor);
+  add('--ts-surface', tokens.surfaceVariant);
+  return variables;
 }

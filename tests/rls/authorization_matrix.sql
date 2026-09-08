@@ -147,6 +147,39 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- Tenant-level administration: authentication is not authorization. Only the
+-- tenant administrator receives branding.manage (P36).
+-- ---------------------------------------------------------------------------
+do $$
+declare
+  v_admin_sub uuid := (select au.id from auth.users au join identity.users iu on iu.auth_user_id = au.id
+    where iu.id = (select v from t_ids where k = 'admin'));
+  v_worker_sub uuid := (select au.id from auth.users au join identity.users iu on iu.auth_user_id = au.id
+    where iu.id = (select v from t_ids where k = 'worker'));
+  v_allowed boolean;
+begin
+  set local role authenticated;
+  execute format('set local request.jwt.claims = %L',
+    json_build_object('sub', v_admin_sub, 'role', 'authenticated')::text);
+  select authz.has_tenant_permission('branding.manage') into v_allowed;
+  reset role;
+  if v_allowed is distinct from true then
+    raise exception 'RLS matrix: tenant-level branding permission is explicit for tenant_admin';
+  end if;
+
+  set local role authenticated;
+  execute format('set local request.jwt.claims = %L',
+    json_build_object('sub', v_worker_sub, 'role', 'authenticated')::text);
+  select authz.has_tenant_permission('branding.manage') into v_allowed;
+  reset role;
+  execute 'set local request.jwt.claims = ' || quote_literal('{}');
+  if v_allowed is distinct from false then
+    raise exception 'RLS matrix: case worker unexpectedly received branding.manage';
+  end if;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- SELECT matrix: cases, documents and the search index per subject type
 -- ---------------------------------------------------------------------------
 do $$

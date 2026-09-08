@@ -19,7 +19,7 @@ const securityHeaders = [
       "default-src 'self'",
       "script-src 'self'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self'",
       "connect-src 'self' https://*.supabase.co",
       "frame-ancestors 'none'",
@@ -31,6 +31,15 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+        pathname: '/storage/v1/object/public/branding-assets/**',
+      },
+    ],
+  },
   poweredByHeader: false,
   transpilePackages: [
     '@tryggsignal/authorization',
