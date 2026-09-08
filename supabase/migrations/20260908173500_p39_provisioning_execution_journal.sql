@@ -412,3 +412,131 @@ $$;
 revoke all on function public.list_provisioning_steps(uuid)
   from public, anon, authenticated;
 grant execute on function public.list_provisioning_steps(uuid) to service_role;
+
+
+-- Service-role wrappers for the server orchestrator. The platform schema stays
+-- unexposed to PostgREST clients.
+create or replace function public.transition_provisioning_step(
+  p_run_id uuid,
+  p_step_key text,
+  p_to_status text,
+  p_error text default null,
+  p_metadata jsonb default null
+)
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  select platform.transition_provisioning_step(
+    p_run_id, p_step_key, p_to_status, p_error, p_metadata
+  );
+$$;
+
+revoke all on function public.transition_provisioning_step(uuid, text, text, text, jsonb)
+  from public, anon, authenticated;
+grant execute on function public.transition_provisioning_step(uuid, text, text, text, jsonb)
+  to service_role;
+
+create or replace function public.transition_provisioning_run(
+  p_run_id uuid,
+  p_to_status text,
+  p_error text default null
+)
+returns text
+language sql
+security definer
+set search_path = ''
+as $$
+  select platform.transition_provisioning_run(p_run_id, p_to_status, p_error);
+$$;
+
+revoke all on function public.transition_provisioning_run(uuid, text, text)
+  from public, anon, authenticated;
+grant execute on function public.transition_provisioning_run(uuid, text, text)
+  to service_role;
+
+-- Reruns may refresh metadata for the exact same data plane, but may never
+-- silently rebind a municipality/environment to another Supabase project.
+create or replace function public.register_tenant_data_plane(
+  p_tenant_id uuid,
+  p_environment text,
+  p_project_ref text,
+  p_region text,
+  p_supabase_url text,
+  p_publishable_key text,
+  p_privileged_credential_reference text,
+  p_schema_version text,
+  p_health_status text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_existing platform.tenant_deployments%rowtype;
+  v_id uuid;
+begin
+  if p_environment not in ('DEV', 'TEST', 'CUSTOMER_TEST', 'PRODUCTION') then
+    raise exception 'Invalid deployment environment' using errcode = 'check_violation';
+  end if;
+  if p_health_status not in ('UNKNOWN', 'HEALTHY', 'DEGRADED', 'UNAVAILABLE') then
+    raise exception 'Invalid health status' using errcode = 'check_violation';
+  end if;
+  if p_project_ref is null or length(trim(p_project_ref)) < 8 then
+    raise exception 'Supabase project ref is required' using errcode = 'check_violation';
+  end if;
+  if p_privileged_credential_reference is null
+     or p_privileged_credential_reference ~* '^(eyJ|sb_secret|service_role)' then
+    raise exception 'Only a privileged credential reference may be persisted'
+      using errcode = 'check_violation';
+  end if;
+
+  select * into v_existing
+  from platform.tenant_deployments d
+  where d.tenant_id = p_tenant_id and d.environment = p_environment
+  for update;
+
+  if found then
+    if v_existing.supabase_project_ref <> trim(p_project_ref) then
+      raise exception 'Existing tenant deployment cannot be rebound to another Supabase project'
+        using errcode = 'check_violation';
+    end if;
+
+    update platform.tenant_deployments
+    set supabase_region = p_region,
+        supabase_url = p_supabase_url,
+        publishable_key = p_publishable_key,
+        privileged_credential_reference = p_privileged_credential_reference,
+        schema_version = p_schema_version,
+        status = 'ACTIVE',
+        health_status = p_health_status,
+        last_health_check_at = now()
+    where id = v_existing.id
+    returning id into v_id;
+
+    return v_id;
+  end if;
+
+  insert into platform.tenant_deployments (
+    tenant_id, environment, supabase_project_ref, supabase_region, supabase_url,
+    publishable_key, privileged_credential_reference, schema_version,
+    status, health_status, last_health_check_at
+  ) values (
+    p_tenant_id, p_environment, trim(p_project_ref), p_region, p_supabase_url,
+    p_publishable_key, p_privileged_credential_reference, p_schema_version,
+    'ACTIVE', p_health_status, now()
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.register_tenant_data_plane(
+  uuid, text, text, text, text, text, text, text, text
+) from public, anon, authenticated;
+grant execute on function public.register_tenant_data_plane(
+  uuid, text, text, text, text, text, text, text, text
+) to service_role;
