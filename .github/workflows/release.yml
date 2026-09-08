@@ -100,6 +100,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_documents.sql
       - name: G6 completeness integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_completeness.sql
+      - name: G7 referral communication integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_referrals.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
