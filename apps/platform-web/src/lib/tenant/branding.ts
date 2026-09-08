@@ -45,11 +45,11 @@ export interface TenantBrandingView extends BrandingTokens {
   readonly version: number;
   readonly status: 'DRAFT' | 'PUBLISHED' | 'SUPERSEDED';
   readonly contrastValidationStatus: 'NOT_VALIDATED' | 'PASSED' | 'FAILED';
-  readonly logoUrl?: string;
-  readonly logoDarkUrl?: string;
-  readonly faviconUrl?: string;
-  readonly publishedAt?: string | null;
-  readonly supersedesId?: string | null;
+  readonly logoUrl?: string | undefined;
+  readonly logoDarkUrl?: string | undefined;
+  readonly faviconUrl?: string | undefined;
+  readonly publishedAt?: string | null | undefined;
+  readonly supersedesId?: string | null | undefined;
 }
 
 export class BrandingRuntimeError extends Error {
