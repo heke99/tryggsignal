@@ -90,8 +90,8 @@ function scanner(result: MalwareScanResult): MalwareScanner {
     async scan(stream) {
       // Consume the stream; the processor performs hash/size/signature inspection
       // while the scanner receives the exact same bytes.
-      for await (const _chunk of stream) {
-        // no-op
+      for await (const chunk of stream) {
+        expect(chunk.byteLength).toBeGreaterThan(0);
       }
       return result;
     },
