@@ -38,9 +38,7 @@ describe('tenant cache and cookie scoping (masterplan 142, 180, 184)', () => {
   });
 
   it('cannot collide by moving separators between namespace and parts', () => {
-    expect(tenantCacheKey(context, 'cases:a')).not.toBe(
-      tenantCacheKey(context, 'cases', 'a'),
-    );
+    expect(tenantCacheKey(context, 'cases:a')).not.toBe(tenantCacheKey(context, 'cases', 'a'));
     expect(tenantCacheKey(context, 'cases', 'a:b')).not.toBe(
       tenantCacheKey(context, 'cases:a', 'b'),
     );
