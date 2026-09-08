@@ -573,6 +573,22 @@ begin
       using errcode = 'foreign_key_violation';
   end if;
 
+  if not exists (
+    select 1
+    from workflow.workflow_templates t
+    join workflow.workflow_template_versions v on v.template_id = t.id
+    where t.authority_id = p_authority_id
+      and t.key = trim(p_template_key)
+      and t.process_type = trim(p_process_type)
+      and v.published_at is not null
+      and v.valid_from <= now()
+      and (v.valid_to is null or v.valid_to > now())
+  ) then
+    raise exception 'No published workflow "%" matches process type "%" in this authority',
+      trim(p_template_key), trim(p_process_type)
+      using errcode = 'no_data_found';
+  end if;
+
   v_decision := authz.can('case.create', jsonb_build_object(
     'authority_id', p_authority_id,
     'department_id', p_department_id,
