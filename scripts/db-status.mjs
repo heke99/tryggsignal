@@ -46,11 +46,11 @@ if (!url) {
     }
 
     try {
-      const response = await fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/tryggsignal_db_status`, {
+      const response = await globalThis.fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/tryggsignal_db_status`, {
         method: 'POST',
         headers,
         body: '{}',
-        signal: AbortSignal.timeout(10_000),
+        signal: globalThis.AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
