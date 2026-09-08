@@ -36,13 +36,25 @@ export const PLATFORM_ENV: readonly EnvVarSpec[] = [
     name: 'CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY',
     required: true,
     public: false,
-    description: 'Control-plane publishable (anon) key',
+    description: 'Control-plane publishable key used only for routing',
   },
   {
     name: 'CONTROL_PLANE_SECRET_REFERENCE',
-    required: false,
+    required: true,
     public: false,
-    description: 'SecretProvider reference for the privileged control-plane credential',
+    description: 'SecretProvider reference for server-only control-plane RPCs',
+  },
+  {
+    name: 'SIGN_IN_STATE_SECRET',
+    required: true,
+    public: false,
+    description: 'HMAC secret for tenant/domain-bound sign-in state',
+  },
+  {
+    name: 'RATE_LIMIT_KEY_SECRET',
+    required: true,
+    public: false,
+    description: 'HMAC secret used before rate-limit subjects are persisted',
   },
   {
     name: 'TRUST_FORWARDED_HOST',
@@ -53,7 +65,6 @@ export const PLATFORM_ENV: readonly EnvVarSpec[] = [
   },
 ];
 
-/** Names that must never appear as a public variable, even by accident. */
 const SECRET_MARKERS = [
   'SERVICE_ROLE',
   'SECRET',
