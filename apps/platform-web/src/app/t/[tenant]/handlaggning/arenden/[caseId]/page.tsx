@@ -4,12 +4,15 @@ import {
   advanceWorkflowAction,
   assignCaseAction,
   closeCaseAction,
+  linkCasePropertyAction,
+  registerLocalPropertyAction,
+  setPrimaryPropertyAction,
   setWorkflowPauseAction,
   updateCasePartyRelationshipAction,
   updatePartyContactAction,
 } from '@/lib/data/actions';
 import { currentTenant } from '@/lib/tenant/context';
-import { loadCaseWorkspace } from '@/lib/data/workspace';
+import { loadCaseWorkspace, searchPropertyCandidates } from '@/lib/data/workspace';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +43,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   'party-role': 'Partens roll i ärendet kunde inte ändras.',
   'party-contact':
     'Kontaktuppgifterna kunde inte ändras. En delad part kräver behörighet till samtliga länkade ärenden.',
+  'property-link': 'Fastigheten kunde inte kopplas till ärendet.',
+  'property-primary': 'Primär fastighet kunde inte ändras.',
+  'property-register':
+    'Den lokala fastigheten kunde inte registreras. Kontrollera beteckning, adress och behörighet.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -51,6 +58,9 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'party-added': 'Parten har lagts till i ärendet.',
   'party-role': 'Partens roll i ärendet har uppdaterats.',
   'party-contact': 'Partens kontaktuppgifter har uppdaterats.',
+  'property-linked': 'Fastigheten har kopplats till ärendet.',
+  'property-primary': 'Primär fastighet har uppdaterats.',
+  'property-registered': 'Den provisoriska lokala fastigheten har registrerats och kopplats.',
 };
 
 export default async function CaseWorkspacePage({
@@ -58,12 +68,17 @@ export default async function CaseWorkspacePage({
   searchParams,
 }: {
   params: Promise<{ caseId: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; propertyQuery?: string }>;
 }) {
   const { caseId } = await params;
+  const query = await searchParams;
   const tenant = await currentTenant();
   const workspace = await loadCaseWorkspace(tenant, caseId);
-  const query = await searchParams;
+  const propertyQuery = (query.propertyQuery ?? '').trim().slice(0, 80);
+  const propertyCandidates =
+    workspace.header === null || propertyQuery.length < 2
+      ? []
+      : await searchPropertyCandidates(tenant, caseId, propertyQuery);
 
   if (workspace.header === null) {
     return (
@@ -423,6 +438,228 @@ export default async function CaseWorkspacePage({
 
             <div className="form-actions form-field-wide">
               <button type="submit">Lägg till part</button>
+            </div>
+          </form>
+        </details>
+      </section>
+
+      <section id="fastighet" aria-labelledby="h-property" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-property">Fastighet ({workspace.properties.length})</h2>
+            <p className="meta">
+              Fastighetsgrafens källdata är läsbar men skrivskyddad. Här kopplar handläggaren
+              befintliga objekt till ärendet eller registrerar en tydligt provisorisk LOCAL-post.
+            </p>
+          </div>
+        </div>
+
+        <div className="entity-list">
+          {workspace.properties.map((property) => (
+            <article className="entity-item" key={property.property_id}>
+              <div className="entity-heading">
+                <div>
+                  <h3>
+                    {property.designation}{' '}
+                    {property.is_primary && <span className="status-badge">Primär</span>}
+                  </h3>
+                  <p className="meta">
+                    Källa: {property.source}
+                    {property.source_version === null ? '' : ` · version ${property.source_version}`}
+                    {property.municipality_code === null
+                      ? ''
+                      : ` · kommunkod ${property.municipality_code}`}
+                  </p>
+                </div>
+              </div>
+
+              {property.addresses.length > 0 && (
+                <>
+                  <h4>Adresser</h4>
+                  <ul>
+                    {property.addresses.map((address) => (
+                      <li key={address.id}>
+                        {address.street_name}{' '}
+                        {`${address.street_number ?? ''}${address.letter ?? ''}`.trim()}{' '}
+                        {[address.postal_code, address.postal_town].filter(Boolean).join(' ')}
+                        <span className="meta"> · {address.source}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {property.identifiers.length > 0 && (
+                <>
+                  <h4>Identifierare</h4>
+                  <ul>
+                    {property.identifiers.map((identifier) => (
+                      <li key={identifier.id}>
+                        {identifier.identifier_type}: {identifier.value}
+                        <span className="meta"> · {identifier.source}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {property.buildings.length > 0 && (
+                <>
+                  <h4>Byggnader</h4>
+                  <ul>
+                    {property.buildings.map((building) => (
+                      <li key={building.id}>
+                        {building.building_designation ?? 'Byggnad'}
+                        {building.building_purpose === null ? '' : ` · ${building.building_purpose}`}
+                        {building.year_built === null ? '' : ` · byggår ${building.year_built}`}
+                        {building.gross_floor_area === null
+                          ? ''
+                          : ` · ${building.gross_floor_area} m² BTA`}
+                        {building.floors === null ? '' : ` · ${building.floors} vån.`}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+
+              {!property.is_primary && (
+                <form action={setPrimaryPropertyAction} className="inline-action">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="propertyId" value={property.property_id} />
+                  <button type="submit" className="button-secondary">
+                    Gör till primär fastighet
+                  </button>
+                </form>
+              )}
+            </article>
+          ))}
+          {workspace.properties.length === 0 && (
+            <p className="meta">Ingen fastighet är ännu kopplad till ärendet.</p>
+          )}
+        </div>
+
+        <details className="create-panel" open={propertyQuery.length >= 2}>
+          <summary>Sök och koppla befintlig fastighet</summary>
+          <form method="get" className="inline-action">
+            <label htmlFor="propertyQuery">Fastighetsbeteckning eller gatunamn</label>
+            <input
+              id="propertyQuery"
+              name="propertyQuery"
+              type="search"
+              minLength={2}
+              maxLength={80}
+              defaultValue={propertyQuery}
+              placeholder="Exempel: STOCKHOLM 1:23 eller Testgatan"
+            />
+            <button type="submit" className="button-secondary">
+              Sök
+            </button>
+          </form>
+
+          {propertyQuery.length >= 2 && (
+            <div aria-live="polite">
+              <h3>Sökresultat ({propertyCandidates.length})</h3>
+              <div className="entity-list">
+                {propertyCandidates.map((candidate) => (
+                  <div className="action-row" key={candidate.id}>
+                    <div>
+                      <strong>{candidate.designation}</strong>
+                      <p className="meta">
+                        {candidate.address ?? 'Adress saknas'} · källa {candidate.source}
+                        {candidate.municipality_code === null
+                          ? ''
+                          : ` · kommunkod ${candidate.municipality_code}`}
+                      </p>
+                    </div>
+                    <form action={linkCasePropertyAction}>
+                      <input type="hidden" name="caseId" value={header.id} />
+                      <input type="hidden" name="propertyId" value={candidate.id} />
+                      <input
+                        type="hidden"
+                        name="makePrimary"
+                        value={workspace.properties.length === 0 ? 'true' : 'false'}
+                      />
+                      <button type="submit">Koppla</button>
+                    </form>
+                  </div>
+                ))}
+                {propertyCandidates.length === 0 && (
+                  <p className="meta">Ingen matchande fastighet hittades i fastighetsgrafen.</p>
+                )}
+              </div>
+            </div>
+          )}
+        </details>
+
+        <details className="create-panel">
+          <summary>Registrera provisorisk lokal fastighet</summary>
+          <p className="meta">
+            Använd bara detta när fastigheten ännu saknas i integrerad källdata. Posten märks
+            LOCAL/provisional och ersätter aldrig en auktoritativ källa.
+          </p>
+          <form action={registerLocalPropertyAction} className="form-grid compact-form">
+            <input type="hidden" name="caseId" value={header.id} />
+
+            <div className="form-field form-field-wide">
+              <label htmlFor="designation">Fastighetsbeteckning</label>
+              <input
+                id="designation"
+                name="designation"
+                type="text"
+                minLength={2}
+                maxLength={240}
+                required
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="municipalityCode">Kommunkod</label>
+              <input
+                id="municipalityCode"
+                name="municipalityCode"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                placeholder="0180"
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="streetName">Gata</label>
+              <input id="streetName" name="streetName" type="text" maxLength={240} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="streetNumber">Nummer</label>
+              <input id="streetNumber" name="streetNumber" type="text" maxLength={30} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="letter">Bokstav</label>
+              <input id="letter" name="letter" type="text" maxLength={10} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="postalCode">Postnummer</label>
+              <input id="postalCode" name="postalCode" type="text" maxLength={20} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="postalTown">Postort</label>
+              <input id="postalTown" name="postalTown" type="text" maxLength={120} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="makePrimary">Primär fastighet</label>
+              <select id="makePrimary" name="makePrimary" defaultValue="true">
+                <option value="true">Ja</option>
+                <option value="false">Nej</option>
+              </select>
+            </div>
+
+            <div className="form-actions form-field-wide">
+              <button type="submit">Registrera och koppla</button>
             </div>
           </form>
         </details>
