@@ -37,12 +37,7 @@ const COMMUNICATION_CHANNELS = new Set([
   'API',
   'PHYSICAL_POST',
 ]);
-const REFERRAL_POSITIONS = new Set([
-  'NO_OBJECTION',
-  'OBJECTION',
-  'CONDITIONAL',
-  'NO_OPINION',
-]);
+const REFERRAL_POSITIONS = new Set(['NO_OBJECTION', 'OBJECTION', 'CONDITIONAL', 'NO_OPINION']);
 
 function field(formData: FormData, name: string): string {
   return String(formData.get(name) ?? '').trim();
@@ -902,7 +897,6 @@ export async function reviewCaseCompletenessAction(formData: FormData): Promise<
   redirect(`${detailPath(caseId)}?ok=completeness-review#kompletthet`);
 }
 
-
 /** Phase G7: create a case-scoped referral through the command boundary. */
 export async function createReferralAction(formData: FormData): Promise<void> {
   const caseId = safeCaseId(formData);
@@ -987,11 +981,7 @@ export async function queueReferralDeliveryAction(formData: FormData): Promise<v
   const recipientId = uuid(field(formData, 'recipientId'));
   const channel = field(formData, 'channel').toUpperCase();
 
-  if (
-    caseId === null ||
-    recipientId === null ||
-    !COMMUNICATION_CHANNELS.has(channel)
-  ) {
+  if (caseId === null || recipientId === null || !COMMUNICATION_CHANNELS.has(channel)) {
     redirect(
       caseId === null
         ? '/handlaggning?error=validation'
@@ -1057,11 +1047,7 @@ export async function queueReferralFollowupAction(formData: FormData): Promise<v
   const recipientId = uuid(field(formData, 'recipientId'));
   const channel = field(formData, 'channel').toUpperCase();
 
-  if (
-    caseId === null ||
-    recipientId === null ||
-    !COMMUNICATION_CHANNELS.has(channel)
-  ) {
+  if (caseId === null || recipientId === null || !COMMUNICATION_CHANNELS.has(channel)) {
     redirect(
       caseId === null
         ? '/handlaggning?error=validation'

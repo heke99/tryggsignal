@@ -1066,12 +1066,7 @@ export default async function CaseWorkspacePage({
             </div>
             <div className="form-field form-field-wide">
               <label htmlFor="referralDescription">Beskrivning / fråga</label>
-              <textarea
-                id="referralDescription"
-                name="description"
-                rows={4}
-                maxLength={10000}
-              />
+              <textarea id="referralDescription" name="description" rows={4} maxLength={10000} />
             </div>
             <div className="form-field">
               <label htmlFor="referralDueAt">Svar senast</label>
@@ -1203,7 +1198,10 @@ export default async function CaseWorkspacePage({
                               >
                                 <option value="">Ingen bifogad handling</option>
                                 {workspace.documents
-                                  .filter((document) => document.versions[0]?.ingestion_status === 'CLEAN')
+                                  .filter(
+                                    (document) =>
+                                      document.versions[0]?.ingestion_status === 'CLEAN',
+                                  )
                                   .map((document) => (
                                     <option key={document.id} value={document.id}>
                                       {document.title}
@@ -1269,11 +1267,7 @@ export default async function CaseWorkspacePage({
                       <label htmlFor={'referral-party-' + referral.id}>
                         Befintlig part i ärendet
                       </label>
-                      <select
-                        id={'referral-party-' + referral.id}
-                        name="partyId"
-                        defaultValue=""
-                      >
+                      <select id={'referral-party-' + referral.id} name="partyId" defaultValue="">
                         <option value="">Extern organisation</option>
                         {workspace.parties.map((party) => (
                           <option key={party.party_id} value={party.party_id}>
@@ -1283,9 +1277,7 @@ export default async function CaseWorkspacePage({
                       </select>
                     </div>
                     <div className="form-field">
-                      <label htmlFor={'referral-org-' + referral.id}>
-                        Extern organisation
-                      </label>
+                      <label htmlFor={'referral-org-' + referral.id}>Extern organisation</label>
                       <input
                         id={'referral-org-' + referral.id}
                         name="organizationName"
@@ -1294,9 +1286,7 @@ export default async function CaseWorkspacePage({
                       />
                     </div>
                     <div className="form-field form-field-wide">
-                      <label htmlFor={'referral-address-' + referral.id}>
-                        Kontaktadress
-                      </label>
+                      <label htmlFor={'referral-address-' + referral.id}>Kontaktadress</label>
                       <input
                         id={'referral-address-' + referral.id}
                         name="contactAddress"

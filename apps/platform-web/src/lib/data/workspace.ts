@@ -982,9 +982,7 @@ export async function loadCaseReferrals(
 
   const partyIds = Array.from(
     new Set(
-      recipientRows
-        .map((row) => row.party_id)
-        .filter((value): value is string => value !== null),
+      recipientRows.map((row) => row.party_id).filter((value): value is string => value !== null),
     ),
   );
   const deliveryIds = Array.from(
@@ -1004,9 +1002,7 @@ export async function loadCaseReferrals(
       : session.client
           .schema('communication')
           .from('deliveries')
-          .select(
-            'id, channel, status, sent_at, delivered_at, failed_reason, external_reference',
-          )
+          .select('id, channel, status, sent_at, delivered_at, failed_reason, external_reference')
           .in('id', deliveryIds),
     session.client
       .schema('referral')
