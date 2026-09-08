@@ -36,18 +36,17 @@ interface RuntimeRow {
   health_status: string;
 }
 
-export interface TenantRuntimeDeployment
-  extends Pick<
-    TenantDeploymentRecord,
-    | 'id'
-    | 'supabaseProjectRef'
-    | 'supabaseRegion'
-    | 'supabaseUrl'
-    | 'publishableKey'
-    | 'schemaVersion'
-    | 'status'
-    | 'healthStatus'
-  > {}
+export type TenantRuntimeDeployment = Pick<
+  TenantDeploymentRecord,
+  | 'id'
+  | 'supabaseProjectRef'
+  | 'supabaseRegion'
+  | 'supabaseUrl'
+  | 'publishableKey'
+  | 'schemaVersion'
+  | 'status'
+  | 'healthStatus'
+>;
 
 interface AuthRow {
   reference: string;
