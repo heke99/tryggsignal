@@ -698,6 +698,7 @@ export async function confirmDocumentUploadAction(input: {
   }
 
   revalidatePath(detailPath(caseId));
+  revalidatePath(`/mina-sidor/arenden/${caseId}`);
 }
 
 export async function markDocumentUploadFailedAction(input: {
@@ -782,6 +783,36 @@ export async function updateDocumentMetadataAction(formData: FormData): Promise<
 
   revalidatePath(detailPath(caseId));
   redirect(`${detailPath(caseId)}?ok=document-metadata#handlingar`);
+}
+
+export async function setDocumentPortalVisibilityAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const documentId = uuid(field(formData, 'documentId'));
+  const visibleRaw = field(formData, 'visible');
+
+  if (caseId === null || documentId === null || !['true', 'false'].includes(visibleRaw)) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#handlingar`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('documents').rpc('set_portal_visibility_for_user', {
+    p_document_id: documentId,
+    p_visible: visibleRaw === 'true',
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=document-portal#handlingar`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  revalidatePath(`/mina-sidor/arenden/${caseId}`);
+  redirect(
+    `${detailPath(caseId)}?ok=${visibleRaw === 'true' ? 'document-published' : 'document-hidden'}#handlingar`,
+  );
 }
 
 export async function createDocumentDownloadUrlAction(input: {
