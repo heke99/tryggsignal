@@ -323,7 +323,7 @@ returns void
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_instance workflow.workflow_instances%rowtype;
   v_case core.cases%rowtype;
@@ -409,7 +409,7 @@ begin
     jsonb_build_object('to_state', p_to_state, 'trigger', p_trigger_type)
   );
 end;
-$;
+$$;
 
 revoke all on function workflow.advance(uuid, text, text, text) from public;
 revoke all on function workflow.advance(uuid, text, text, text) from anon, authenticated;
