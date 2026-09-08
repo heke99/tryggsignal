@@ -153,6 +153,37 @@ export interface TeamOption {
   readonly name: string;
 }
 
+export interface CaseParty {
+  readonly relation_id: string;
+  readonly party_id: string;
+  readonly party_type: 'PERSON' | 'ORGANIZATION';
+  readonly display_name: string;
+  readonly relationship: string;
+  readonly organization_number: string | null;
+  readonly person_reference: string | null;
+  readonly contact_email: string | null;
+  readonly contact_phone: string | null;
+  readonly identity_link_verified: boolean;
+}
+
+interface CasePartyRelationRow {
+  readonly id: string;
+  readonly party_id: string;
+  readonly relationship: string;
+  readonly identity_user_id: string | null;
+  readonly verified_at: string | null;
+}
+
+interface PartyRow {
+  readonly id: string;
+  readonly party_type: 'PERSON' | 'ORGANIZATION';
+  readonly display_name: string;
+  readonly organization_number: string | null;
+  readonly person_reference: string | null;
+  readonly contact_email: string | null;
+  readonly contact_phone: string | null;
+}
+
 export interface CaseWorkspace {
   readonly available: boolean;
   readonly reason?: string;
@@ -168,6 +199,7 @@ export interface CaseWorkspace {
   readonly workflow: CaseWorkflow | null;
   readonly assignees: readonly StaffOption[];
   readonly teams: readonly TeamOption[];
+  readonly parties: readonly CaseParty[];
 }
 
 interface WorkflowDefinition {
@@ -196,6 +228,7 @@ export async function loadCaseWorkspace(
     workflow: null,
     assignees: [],
     teams: [],
+    parties: [],
   };
 
   let session;
@@ -229,7 +262,8 @@ export async function loadCaseWorkspace(
     };
   }
 
-  const [documents, deadlines, history, workflowInstance, memberships, teams] = await Promise.all([
+  const [documents, deadlines, history, workflowInstance, memberships, teams, partyRelations] =
+    await Promise.all([
     session.client
       .schema('documents')
       .from('documents')
@@ -276,6 +310,12 @@ export async function loadCaseWorkspace(
       .eq('authority_id', header.authority_id)
       .eq('is_active', true)
       .order('name', { ascending: true }),
+    session.client
+      .schema('core')
+      .from('case_parties')
+      .select('id, party_id, relationship, identity_user_id, verified_at')
+      .eq('case_id', caseId)
+      .order('created_at', { ascending: true }),
   ]);
 
   const userIds = Array.from(
@@ -298,6 +338,41 @@ export async function loadCaseWorkspace(
             .eq('status', 'ACTIVE')
             .order('display_name', { ascending: true })
         ).data ?? []);
+
+  const relationRows = (partyRelations.data ?? []) as CasePartyRelationRow[];
+  const partyIds = Array.from(new Set(relationRows.map((relation) => relation.party_id)));
+  const partyRows =
+    partyIds.length === 0
+      ? []
+      : (((await session.client
+          .schema('core')
+          .from('parties')
+          .select(
+            'id, party_type, display_name, organization_number, person_reference, contact_email, contact_phone',
+          )
+          .in('id', partyIds)
+          .order('display_name', { ascending: true })).data ?? []) as PartyRow[]);
+
+  const partyById = new Map(partyRows.map((party) => [party.id, party] as const));
+  const parties: CaseParty[] = relationRows.flatMap((relation) => {
+    const party = partyById.get(relation.party_id);
+    if (party === undefined) return [];
+    return [
+      {
+        relation_id: relation.id,
+        party_id: party.id,
+        party_type: party.party_type,
+        display_name: party.display_name,
+        relationship: relation.relationship,
+        organization_number: party.organization_number,
+        person_reference: party.person_reference,
+        contact_email: party.contact_email,
+        contact_phone: party.contact_phone,
+        identity_link_verified:
+          relation.identity_user_id !== null && relation.verified_at !== null,
+      },
+    ];
+  });
 
   let workflow: CaseWorkflow | null = null;
 
@@ -348,6 +423,7 @@ export async function loadCaseWorkspace(
     workflow,
     assignees: assignees as StaffOption[],
     teams: (teams.data ?? []) as TeamOption[],
+    parties,
   };
 }
 
