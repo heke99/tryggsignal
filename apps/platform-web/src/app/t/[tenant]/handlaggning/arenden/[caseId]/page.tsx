@@ -70,9 +70,9 @@ export default async function CaseWorkspacePage({
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
   const errorMessage =
-    query.error === undefined ? null : ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.validation;
+    query.error === undefined ? null : (ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.validation);
   const successMessage =
-    query.ok === undefined ? null : SUCCESS_MESSAGES[query.ok] ?? 'Åtgärden är genomförd.';
+    query.ok === undefined ? null : (SUCCESS_MESSAGES[query.ok] ?? 'Åtgärden är genomförd.');
 
   return (
     <main id="innehall">
@@ -341,7 +341,14 @@ export default async function CaseWorkspacePage({
             <form action={closeCaseAction} className="inline-action">
               <input type="hidden" name="caseId" value={header.id} />
               <label htmlFor="closeReason">Orsak till stängning</label>
-              <textarea id="closeReason" name="reason" rows={3} minLength={3} maxLength={1000} required />
+              <textarea
+                id="closeReason"
+                name="reason"
+                rows={3}
+                minLength={3}
+                maxLength={1000}
+                required
+              />
               <button type="submit" className="button-danger">
                 Stäng ärendet
               </button>
