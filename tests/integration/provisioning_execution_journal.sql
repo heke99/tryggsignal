@@ -225,8 +225,29 @@ begin
   if has_function_privilege('authenticated', 'public.list_provisioning_steps(uuid)', 'EXECUTE') then
     raise exception 'P39 journal: authenticated can read control-plane provisioning journal';
   end if;
+  if has_function_privilege(
+    'authenticated',
+    'public.transition_provisioning_step(uuid,text,text,text,jsonb)',
+    'EXECUTE'
+  ) then
+    raise exception 'P39 journal: authenticated can transition provisioning steps';
+  end if;
+  if has_function_privilege(
+    'authenticated',
+    'public.transition_provisioning_run(uuid,text,text)',
+    'EXECUTE'
+  ) then
+    raise exception 'P39 journal: authenticated can transition provisioning runs';
+  end if;
   if not has_function_privilege('service_role', 'public.list_provisioning_steps(uuid)', 'EXECUTE') then
     raise exception 'P39 journal: service_role cannot read provisioning journal';
+  end if;
+  if not has_function_privilege(
+    'service_role',
+    'public.transition_provisioning_step(uuid,text,text,text,jsonb)',
+    'EXECUTE'
+  ) then
+    raise exception 'P39 journal: service_role cannot transition provisioning steps';
   end if;
 end;
 $$;
