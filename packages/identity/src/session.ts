@@ -18,18 +18,14 @@ export interface SessionCookieSpec {
   };
 }
 
-/**
- * A `__Host-` prefixed cookie may not carry a Domain attribute, so the browser
- * refuses to send it to any other host. That is what stops one municipality's
- * portal from ever seeing another's session, wildcard subdomain or custom domain.
- */
-export function sessionCookie(
+function authCookie(
   context: TenantContext,
+  base: 'session' | 'refresh',
   token: string,
-  maxAgeSeconds = 8 * 3600,
+  maxAgeSeconds: number,
 ): SessionCookieSpec {
   return {
-    name: tenantCookieName(context, 'session'),
+    name: tenantCookieName(context, base),
     value: token,
     options: {
       httpOnly: true,
@@ -41,8 +37,34 @@ export function sessionCookie(
   };
 }
 
+/**
+ * A `__Host-` prefixed cookie may not carry a Domain attribute, so the browser
+ * refuses to send it to any other host. That is what stops one municipality's
+ * portal from ever seeing another's session.
+ */
+export function sessionCookie(
+  context: TenantContext,
+  token: string,
+  maxAgeSeconds = 8 * 3600,
+): SessionCookieSpec {
+  return authCookie(context, 'session', token, maxAgeSeconds);
+}
+
+/** Refresh tokens are also host-only and never exposed to client JavaScript. */
+export function refreshSessionCookie(
+  context: TenantContext,
+  token: string,
+  maxAgeSeconds = 30 * 24 * 3600,
+): SessionCookieSpec {
+  return authCookie(context, 'refresh', token, maxAgeSeconds);
+}
+
 export function clearedSessionCookie(context: TenantContext): SessionCookieSpec {
-  return { ...sessionCookie(context, '', 0), value: '' };
+  return authCookie(context, 'session', '', 0);
+}
+
+export function clearedRefreshSessionCookie(context: TenantContext): SessionCookieSpec {
+  return authCookie(context, 'refresh', '', 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -65,10 +87,6 @@ function sign(payload: string, secret: string): string {
   return createHmac('sha256', secret).update(payload).digest('base64url');
 }
 
-/**
- * The state is bound to the tenant AND the domain it was issued on, so a state
- * minted on one municipality's host cannot complete a sign-in on another's.
- */
 export function createSignInState(
   context: TenantContext,
   returnTo: string,
@@ -120,24 +138,14 @@ export function verifySignInState(
   return parsed;
 }
 
-/**
- * Masterplan 181: the launcher hands off to the tenant's own host. Only a
- * same-site path is ever accepted as a return target, so a crafted `returnTo`
- * cannot turn the login flow into an open redirect.
- */
 export function safeReturnTo(candidate: string | null | undefined): string {
   if (candidate == null || candidate.length === 0) return '/';
   if (!candidate.startsWith('/')) return '/';
-  // `//evil.example` and `/\evil.example` are protocol-relative URLs.
   if (candidate.startsWith('//') || candidate.startsWith('/\\')) return '/';
   if (candidate.includes('\n') || candidate.includes('\r')) return '/';
   return candidate;
 }
 
-/**
- * Masterplan 175/181: the central gateway may only send a user to a host that is
- * a verified domain of a tenant they actually have a relation to.
- */
 export function buildHandoffUrl(
   target: { readonly canonicalHostname: string; readonly slug: string },
   authorizedSlugs: readonly string[],
