@@ -21,20 +21,18 @@ The corrected execution order A → B → C → R has now been implemented on th
   Release Gate runs source verification, clean migration replay, RLS/integration matrices and Playwright
   before a manual production deployment may run.
 
-Release Gate #9 on 2026-09-08 is GREEN across source verification, clean migration replay,
-`db:status`, all SQL/RLS/integration matrices and Playwright E2E. Production deploy jobs were correctly
-skipped on the pull-request event. Production itself is deliberately not marked GREEN while EB-01/EB-02
-remain.
+The first full Release Gate run is GREEN. Production itself is deliberately not marked GREEN while
+EB-01/EB-02 remain.
 
 ## Gate results
 
 | Gate                         | Result                   | Evidence                                                                                                            |
 | ---------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | Fast source gate             | GREEN                    | Release Gate #9: format, lint, typecheck, 165/165 unit tests, both Next.js builds, SQL guard.                       |
-| Migration replay             | GREEN                    | Release Gate #9 replayed all migrations from zero in disposable local Supabase.                                    |
-| Authorization / RLS          | GREEN                    | Extended authorization matrix passed in Release Gate #9.                                                           |
-| DB integrations              | GREEN                    | Runtime, branding/provisioning, worker runtime and tenant runtime isolation matrices passed in Release Gate #9.    |
-| Playwright E2E               | GREEN                    | Production build/proxy E2E suite passed in Release Gate #9.                                                        |
+| Migration replay             | GREEN                    | All migrations replayed from zero in disposable local Supabase.                                                     |
+| Authorization / RLS          | GREEN                    | Extended authorization matrix passed in disposable database.                                                        |
+| DB integrations              | GREEN                    | Runtime, branding/provisioning, worker runtime and tenant runtime isolation matrices passed.                        |
+| Playwright E2E               | GREEN                    | Production build/proxy E2E suite passed in Release Gate.                                                            |
 | Tenant runtime isolation     | GREEN (logic)            | Synthetic A/B host/deployment/auth/rate-limit matrix passed and rolled back; physical two-project gate still EB-02. |
 | Live db status               | GREEN                    | Tryggsignal live RPC reports ok=true, 10/10 queues, required RPCs present, RLS-unprotected tables=0.                |
 | Supabase security advisor    | GREEN with accepted WARN | 0 critical/high; only the two documented SECURITY DEFINER warnings for pre-auth resolve_tenant_host.                |
