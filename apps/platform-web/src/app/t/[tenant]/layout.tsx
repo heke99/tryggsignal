@@ -1,4 +1,8 @@
+import Image from 'next/image';
+import type { CSSProperties } from 'react';
+import { brandingCssVariableMap } from '@tryggsignal/tenancy';
 import { currentTenant } from '@/lib/tenant/context';
+import { resolvePublishedBranding } from '@/lib/tenant/branding';
 
 /**
  * Tenant shell. The tenant is taken from the resolved host context, never from
@@ -7,19 +11,44 @@ import { currentTenant } from '@/lib/tenant/context';
  */
 export default async function TenantLayout({ children }: { children: React.ReactNode }) {
   const tenant = await currentTenant();
+  const branding = await resolvePublishedBranding(tenant);
+  const style = brandingCssVariableMap(branding) as CSSProperties;
 
   return (
-    <>
+    <div style={style} data-branding-version={branding.version}>
       <header
         style={{
           borderBottom: '1px solid var(--ts-border)',
           padding: '0.75rem 1.25rem',
+          display: 'flex',
+          gap: '0.75rem',
+          alignItems: 'center',
         }}
       >
-        <strong>{tenant.tenantSlug}</strong>{' '}
+        {branding.logoUrl !== undefined ? (
+          <Image
+            src={branding.logoUrl}
+            alt={`${branding.displayName} logotyp`}
+            width={180}
+            height={60}
+            sizes="180px"
+            priority
+            style={{ width: 'auto', maxWidth: '11rem', height: '3rem', objectFit: 'contain' }}
+          />
+        ) : (
+          <strong>{branding.shortName ?? branding.displayName}</strong>
+        )}
         <span className="meta">· {tenant.resolvedHostname}</span>
       </header>
       {children}
-    </>
+      {branding.showTryggsignalBranding ? (
+        <footer
+          className="meta"
+          style={{ borderTop: '1px solid var(--ts-border)', padding: '1rem 1.25rem' }}
+        >
+          Powered by Tryggsignal
+        </footer>
+      ) : null}
+    </div>
   );
 }
