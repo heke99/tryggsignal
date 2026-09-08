@@ -535,8 +535,14 @@ begin
   end if;
 
   if p_document_id is not null and not exists (
-    select 1 from documents.documents d
-    where d.id = p_document_id and d.case_id = v_case.id
+    select 1
+    from documents.documents d
+    join documents.document_versions dv
+      on dv.document_id = d.id
+     and dv.version = d.current_version
+    where d.id = p_document_id
+      and d.case_id = v_case.id
+      and dv.ingestion_status = 'CLEAN'
   ) then
     raise exception 'Response document is unavailable' using errcode = 'no_data_found';
   end if;
@@ -703,28 +709,34 @@ returns integer
 language plpgsql
 security definer
 set search_path = ''
-as $$
+as $
 declare
-  v_count integer;
+  v_count integer := 0;
+  v_referral record;
 begin
-  with overdue as (
+  for v_referral in
     update referral.referrals r
     set status = 'OVERDUE'
     where r.sent_at is not null
       and r.due_at < now()
       and r.status in ('SENT', 'PARTIALLY_ANSWERED')
-    returning r.id
-  )
-  select count(*) into v_count from overdue;
+    returning r.id, r.case_id, r.authority_id
+  loop
+    v_count := v_count + 1;
 
-  update referral.referral_recipients rr
-  set status = 'NO_RESPONSE'
-  where rr.status = 'SENT'
-    and exists (
-      select 1 from referral.referrals r
-      where r.id = rr.referral_id
-        and r.status = 'OVERDUE'
+    update referral.referral_recipients rr
+    set status = 'NO_RESPONSE'
+    where rr.referral_id = v_referral.id
+      and rr.status = 'SENT';
+
+    perform audit.record(
+      'case.referral.overdue',
+      'case',
+      v_referral.case_id,
+      v_referral.authority_id,
+      format('Referral %s passed its due_at without all responses', v_referral.id)
     );
+  end loop;
 
   update config.scheduled_tasks
   set last_run_at = now(),
@@ -733,7 +745,7 @@ begin
 
   return v_count;
 end;
-$$;
+$;
 
 revoke all on function referral.sweep_overdue() from public;
 revoke all on function referral.sweep_overdue() from anon, authenticated;
