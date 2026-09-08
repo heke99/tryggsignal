@@ -272,7 +272,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $portal_message$
   select exists (
     select 1
     from communication.deliveries d
@@ -284,7 +284,7 @@ as $
       and cp.identity_user_id = (select authz.current_user_id())
       and cp.verified_at is not null
   )
-$;
+$portal_message$;
 
 create or replace function communication.external_can_read_portal_delivery(
   p_delivery_id uuid
@@ -294,7 +294,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $portal_delivery$
   select exists (
     select 1
     from communication.deliveries d
@@ -309,7 +309,7 @@ as $
       and cp.identity_user_id = (select authz.current_user_id())
       and cp.verified_at is not null
   )
-$;
+$portal_delivery$;
 
 revoke all on function communication.external_can_read_portal_message(uuid, uuid)
   from public, anon;
