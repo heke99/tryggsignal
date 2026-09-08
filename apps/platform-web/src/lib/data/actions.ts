@@ -111,7 +111,9 @@ export async function assignCaseAction(formData: FormData): Promise<void> {
     (assignedTeamRaw !== '' && assignedTeamId === null) ||
     reason.length > 500
   ) {
-    redirect(caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`);
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
   }
 
   const { client } = await authenticatedTenantSession();
@@ -144,7 +146,9 @@ export async function advanceWorkflowAction(formData: FormData): Promise<void> {
     targetState.length > 120 ||
     reason.length > 1_000
   ) {
-    redirect(caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`);
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
   }
 
   const { client } = await authenticatedTenantSession();
@@ -175,7 +179,9 @@ export async function setWorkflowPauseAction(formData: FormData): Promise<void> 
     !['true', 'false'].includes(pausedRaw) ||
     reason.length > 1_000
   ) {
-    redirect(caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`);
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
   }
 
   const { client } = await authenticatedTenantSession();
@@ -199,7 +205,9 @@ export async function closeCaseAction(formData: FormData): Promise<void> {
   const reason = field(formData, 'reason');
 
   if (caseId === null || reason.length < 3 || reason.length > 1_000) {
-    redirect(caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`);
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
   }
 
   const { client } = await authenticatedTenantSession();
