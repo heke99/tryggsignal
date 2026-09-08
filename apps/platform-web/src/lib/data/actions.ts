@@ -348,3 +348,104 @@ export async function updatePartyContactAction(formData: FormData): Promise<void
   revalidatePath(detailPath(caseId));
   redirect(`${detailPath(caseId)}?ok=party-contact#parter`);
 }
+
+/** Phase G3: link an existing canonical property to a case. */
+export async function linkCasePropertyAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const propertyId = uuid(field(formData, 'propertyId'));
+  const makePrimary = field(formData, 'makePrimary') === 'true';
+
+  if (caseId === null || propertyId === null) {
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('core').rpc('link_property_to_case_for_user', {
+    p_case_id: caseId,
+    p_property_id: propertyId,
+    p_make_primary: makePrimary,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=property-link#fastighet`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=property-linked#fastighet`);
+}
+
+export async function setPrimaryPropertyAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const propertyId = uuid(field(formData, 'propertyId'));
+
+  if (caseId === null || propertyId === null) {
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('core').rpc('set_primary_property_for_user', {
+    p_case_id: caseId,
+    p_property_id: propertyId,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=property-primary#fastighet`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=property-primary#fastighet`);
+}
+
+export async function registerLocalPropertyAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const designation = field(formData, 'designation');
+  const municipalityCode = field(formData, 'municipalityCode');
+  const streetName = field(formData, 'streetName');
+  const streetNumber = field(formData, 'streetNumber');
+  const letter = field(formData, 'letter');
+  const postalCode = field(formData, 'postalCode');
+  const postalTown = field(formData, 'postalTown');
+  const makePrimary = field(formData, 'makePrimary') !== 'false';
+
+  if (
+    caseId === null ||
+    designation.length < 2 ||
+    designation.length > 240 ||
+    (municipalityCode !== '' && !/^[0-9]{4}$/.test(municipalityCode)) ||
+    streetName.length > 240 ||
+    streetNumber.length > 30 ||
+    letter.length > 10 ||
+    postalCode.length > 20 ||
+    postalTown.length > 120
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#fastighet`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { data, error } = await client.schema('core').rpc('register_local_property_for_case_user', {
+    p_case_id: caseId,
+    p_designation: designation,
+    p_municipality_code: municipalityCode || null,
+    p_street_name: streetName || null,
+    p_street_number: streetNumber || null,
+    p_letter: letter || null,
+    p_postal_code: postalCode || null,
+    p_postal_town: postalTown || null,
+    p_make_primary: makePrimary,
+  });
+
+  if (error !== null || typeof data !== 'string' || uuid(data) === null) {
+    redirect(`${detailPath(caseId)}?error=property-register#fastighet`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=property-registered#fastighet`);
+}
