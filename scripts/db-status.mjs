@@ -46,12 +46,15 @@ if (!url) {
     }
 
     try {
-      const response = await globalThis.fetch(`${url.replace(/\/$/, '')}/rest/v1/rpc/tryggsignal_db_status`, {
-        method: 'POST',
-        headers,
-        body: '{}',
-        signal: globalThis.AbortSignal.timeout(10_000),
-      });
+      const response = await globalThis.fetch(
+        `${url.replace(/\/$/, '')}/rest/v1/rpc/tryggsignal_db_status`,
+        {
+          method: 'POST',
+          headers,
+          body: '{}',
+          signal: globalThis.AbortSignal.timeout(10_000),
+        },
+      );
 
       if (!response.ok) {
         fail(`control-plane status RPC returned HTTP ${response.status}.`);
