@@ -148,3 +148,46 @@ describe('TenantResolver (masterplan 157–159, 171)', () => {
     });
   });
 });
+
+describe('local development hosts', () => {
+  const devResolver = new TenantResolver(directory(domains, [mjolby]), {
+    rootDomain: 'tryggsignal.se',
+    developmentHostSuffix: 'localhost',
+  });
+
+  it('serves the gateway on bare localhost so `pnpm dev` is usable', async () => {
+    const resolution = await devResolver.resolve('localhost:3000');
+    expect(resolution.kind).toBe('PLATFORM');
+    if (resolution.kind === 'PLATFORM') expect(resolution.surface).toBe('APP_GATEWAY');
+  });
+
+  it('maps <slug>.localhost onto the equivalent platform host', async () => {
+    const resolution = await devResolver.resolve('mjolby.localhost:3000');
+    expect(resolution.kind).toBe('TENANT');
+    if (resolution.kind === 'TENANT') expect(resolution.context.tenantSlug).toBe('mjolby');
+  });
+
+  it('keeps the reserved hosts reserved in development too', async () => {
+    for (const [host, surface] of [
+      ['app.localhost', 'APP_GATEWAY'],
+      ['kommuner.localhost', 'MUNICIPALITY_DISCOVERY'],
+      ['platform.localhost', 'PLATFORM_ADMIN'],
+    ] as const) {
+      const resolution = await devResolver.resolve(host);
+      expect(resolution.kind, host).toBe('PLATFORM');
+      if (resolution.kind === 'PLATFORM') expect(resolution.surface).toBe(surface);
+    }
+  });
+
+  it('does not map a multi-label development host', async () => {
+    expect(await devResolver.resolve('a.mjolby.localhost')).toMatchObject({ kind: 'REJECTED' });
+  });
+
+  it('is inert when the suffix is not configured, which is how production runs', async () => {
+    expect(await resolver.resolve('mjolby.localhost')).toMatchObject({
+      kind: 'REJECTED',
+      reason: 'UNKNOWN_DOMAIN',
+    });
+    expect(await resolver.resolve('localhost')).toMatchObject({ kind: 'REJECTED' });
+  });
+});

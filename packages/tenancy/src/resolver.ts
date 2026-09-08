@@ -12,6 +12,17 @@ export interface ResolverConfig {
   readonly rootDomain: string;
   /** Optional preview/test suffix, e.g. `vercel.app`, mapped to the gateway. */
   readonly previewHostSuffix?: string;
+  /**
+   * Local development suffix, normally `localhost`. When set, `localhost` serves
+   * the gateway and `<slug>.localhost` resolves as `<slug>.<rootDomain>`, so a
+   * developer can work on several municipalities without editing /etc/hosts.
+   *
+   * The caller must leave this unset in production: it is a hostname rewrite, and
+   * a production deployment that accepted it would let an attacker-controlled
+   * Host header choose a tenant. `apps/platform-web/proxy.ts` only passes it when
+   * NODE_ENV is not "production".
+   */
+  readonly developmentHostSuffix?: string;
 }
 
 const PLATFORM_HOSTS: ReadonlyMap<string, PlatformSurface> = new Map([
@@ -32,7 +43,7 @@ export class TenantResolver {
     if (!normalized.ok) {
       return { kind: 'REJECTED', reason: 'INVALID_HOSTNAME', hostname: null };
     }
-    const hostname = normalized.hostname;
+    const hostname = this.applyDevelopmentSuffix(normalized.hostname);
 
     const platform = this.platformSurfaceFor(hostname);
     if (platform !== null) {
@@ -70,6 +81,25 @@ export class TenantResolver {
         resolvedHostname: hostname,
       },
     };
+  }
+
+  /**
+   * Rewrites a development hostname to the equivalent platform hostname, so the
+   * rest of resolution — reserved hosts included — behaves exactly as it will in
+   * production. Returns the hostname untouched when no suffix is configured.
+   */
+  private applyDevelopmentSuffix(hostname: string): string {
+    const suffix = this.config.developmentHostSuffix?.toLowerCase();
+    if (suffix === undefined || suffix.length === 0) return hostname;
+
+    if (hostname === suffix) return `app.${this.config.rootDomain.toLowerCase()}`;
+    if (hostname.endsWith(`.${suffix}`)) {
+      const label = hostname.slice(0, -(suffix.length + 1));
+      // Only a single label maps; `a.b.localhost` stays unresolvable rather than
+      // silently becoming something else.
+      if (!label.includes('.')) return `${label}.${this.config.rootDomain.toLowerCase()}`;
+    }
+    return hostname;
   }
 
   /** Reserved exact hosts, checked before any wildcard tenant resolution. */

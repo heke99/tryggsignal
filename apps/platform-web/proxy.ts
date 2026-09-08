@@ -28,9 +28,17 @@ const PREVIEW_SUFFIX = process.env.PREVIEW_HOST_SUFFIX ?? 'vercel.app';
 // proxy; on Vercel the platform sets `host` itself (masterplan 160).
 const TRUST_FORWARDED_HOST = process.env.TRUST_FORWARDED_HOST === 'true';
 
+// Masterplan 160: the development host mapping is a hostname rewrite, so it must
+// never be active in production, where a Host header is attacker-controlled.
+const DEVELOPMENT_HOST_SUFFIX =
+  process.env.NODE_ENV === 'production' ? undefined : (process.env.DEV_HOST_SUFFIX ?? 'localhost');
+
 const resolver = new TenantResolver(tenantDirectory(), {
   rootDomain: ROOT_DOMAIN,
   previewHostSuffix: PREVIEW_SUFFIX,
+  ...(DEVELOPMENT_HOST_SUFFIX === undefined
+    ? {}
+    : { developmentHostSuffix: DEVELOPMENT_HOST_SUFFIX }),
 });
 
 // Masterplan 84: one store per instance; the key carries the tenant so one
