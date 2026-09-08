@@ -17,7 +17,15 @@ interface DomainRow {
   hostname: string;
   normalized_hostname: string;
   domain_type: 'PLATFORM_SUBDOMAIN' | 'CUSTOM_DOMAIN' | 'PLATFORM_RESERVED';
-  status: 'PENDING' | 'AWAITING_DNS' | 'VERIFYING' | 'VERIFIED' | 'ACTIVE' | 'FAILED' | 'DISABLED' | 'REMOVED';
+  status:
+    | 'PENDING'
+    | 'AWAITING_DNS'
+    | 'VERIFYING'
+    | 'VERIFIED'
+    | 'ACTIVE'
+    | 'FAILED'
+    | 'DISABLED'
+    | 'REMOVED';
   is_canonical: boolean;
   is_fallback: boolean;
   vercel_project_id: string | null;

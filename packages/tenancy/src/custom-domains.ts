@@ -49,10 +49,7 @@ export function validateCustomDomainCandidate(
   const root = normalizeHostname(rootDomain);
   if (!root.ok) throw new Error('rootDomain must be a valid hostname');
 
-  if (
-    normalized.hostname === root.hostname ||
-    normalized.hostname.endsWith(`.${root.hostname}`)
-  ) {
+  if (normalized.hostname === root.hostname || normalized.hostname.endsWith(`.${root.hostname}`)) {
     return { ok: false, reason: 'PLATFORM_NAMESPACE' };
   }
 

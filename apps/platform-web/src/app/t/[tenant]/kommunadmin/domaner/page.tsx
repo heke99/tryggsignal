@@ -16,7 +16,8 @@ interface PageProps {
 
 function messageFor(params: Record<string, string | string[] | undefined>): string | null {
   if (params['requested'] === '1') return 'Domänen är registrerad och providerflödet har startat.';
-  if (params['verified'] === '1') return 'Domänens provider-, DNS- och TLS-status har kontrollerats.';
+  if (params['verified'] === '1')
+    return 'Domänens provider-, DNS- och TLS-status har kontrollerats.';
   if (params['activated'] === '1') return 'Domänen är aktiv och används som kanonisk adress.';
   if (params['disabled'] === '1') return 'Domänen är avstängd. Plattformens fallback används.';
   switch (params['error']) {
@@ -74,9 +75,7 @@ export default async function DomainsAdmin({ searchParams }: PageProps) {
             />
           </label>
         </p>
-        <p className="meta">
-          Tryggsignals egna adresser kan inte registreras som custom domains.
-        </p>
+        <p className="meta">Tryggsignals egna adresser kan inte registreras som custom domains.</p>
         <button type="submit">Registrera domän</button>
       </form>
 

@@ -1,7 +1,4 @@
-import type {
-  CustomDomainProviderState,
-  DomainVerificationChallenge,
-} from '@tryggsignal/tenancy';
+import type { CustomDomainProviderState, DomainVerificationChallenge } from '@tryggsignal/tenancy';
 
 export interface VercelDomainProviderOptions {
   readonly token: string;
