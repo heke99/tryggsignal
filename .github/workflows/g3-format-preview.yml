@@ -1,0 +1,25 @@
+name: G3 Format Preview
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  format-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:write
+      - name: Show formatter diff
+        run: git diff -- apps/platform-web/src/app/t/\[tenant\]/handlaggning/arenden/\[caseId\]/page.tsx apps/platform-web/src/lib/data/actions.ts apps/platform-web/src/lib/data/workspace.ts
