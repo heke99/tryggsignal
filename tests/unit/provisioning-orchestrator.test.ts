@@ -24,10 +24,7 @@ class MemoryStore implements ProvisioningRunStore {
     return TENANT_PROVISIONING_STEPS.map((key) => this.steps.get(key)!);
   }
 
-  async transitionRun(
-    _runId: string,
-    status: ProvisioningExecutionStatus,
-  ): Promise<void> {
+  async transitionRun(_runId: string, status: ProvisioningExecutionStatus): Promise<void> {
     if (
       status === 'RUNNING' &&
       (this.runStatus === 'FAILED' || this.runStatus === 'EXTERNAL_BLOCKED')
@@ -56,7 +53,9 @@ class MemoryStore implements ProvisioningRunStore {
   }
 }
 
-function plan(executeFor?: Partial<Record<TenantProvisioningStep, () => Promise<void>>>): ProvisioningOperation[] {
+function plan(
+  executeFor?: Partial<Record<TenantProvisioningStep, () => Promise<void>>>,
+): ProvisioningOperation[] {
   return TENANT_PROVISIONING_STEPS.map((key) => ({
     key,
     execute: executeFor?.[key] ?? (async () => undefined),

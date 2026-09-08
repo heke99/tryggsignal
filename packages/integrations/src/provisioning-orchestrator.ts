@@ -77,7 +77,10 @@ export class ProvisioningOrchestrator {
   async run(
     runId: string,
     operations: readonly ProvisioningOperation[],
-  ): Promise<{ readonly status: 'SUCCEEDED' | 'EXTERNAL_BLOCKED'; readonly step?: TenantProvisioningStep }> {
+  ): Promise<{
+    readonly status: 'SUCCEEDED' | 'EXTERNAL_BLOCKED';
+    readonly step?: TenantProvisioningStep;
+  }> {
     this.assertPlan(operations);
     await this.store.transitionRun(runId, 'RUNNING');
 
@@ -135,10 +138,7 @@ export class ProvisioningOrchestrator {
   private assertPlan(operations: readonly ProvisioningOperation[]): void {
     const keys = operations.map((operation) => operation.key);
     const expected = TENANT_PROVISIONING_STEPS;
-    if (
-      keys.length !== expected.length ||
-      keys.some((key, index) => key !== expected[index])
-    ) {
+    if (keys.length !== expected.length || keys.some((key, index) => key !== expected[index])) {
       throw new Error('Provisioning operations must follow the canonical P39 step order.');
     }
   }

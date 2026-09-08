@@ -159,13 +159,10 @@ export class SupabaseManagementProvider {
 
   async databaseQuery(projectRef: string, query: string): Promise<unknown> {
     if (query.trim().length === 0) throw new Error('Database query is required.');
-    return this.request<unknown>(
-      `/v1/projects/${encodeURIComponent(projectRef)}/database/query`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ query }),
-      },
-    );
+    return this.request<unknown>(`/v1/projects/${encodeURIComponent(projectRef)}/database/query`, {
+      method: 'POST',
+      body: JSON.stringify({ query }),
+    });
   }
 
   async securityAdvisor(projectRef: string): Promise<unknown> {
@@ -183,11 +180,7 @@ export class SupabaseManagementProvider {
         typeof candidate.api_key === 'string',
     );
     if (key?.api_key === undefined) {
-      throw new SupabaseManagementError(
-        'api-keys',
-        404,
-        'No active publishable key is available.',
-      );
+      throw new SupabaseManagementError('api-keys', 404, 'No active publishable key is available.');
     }
     return key.api_key;
   }
