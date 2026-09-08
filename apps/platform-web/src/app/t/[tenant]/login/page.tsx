@@ -71,9 +71,11 @@ export default async function TenantLogin({
         ? 'För många inloggningsförsök. Försök igen om en stund.'
         : params.error === 'configuration'
           ? 'Kommunens inloggning är inte färdigkonfigurerad.'
-          : params.error === 'credentials'
-            ? 'Fel e-postadress eller lösenord.'
-            : null;
+          : params.error === 'session'
+            ? 'Sessionen har gått ut eller återkallats. Logga in igen.'
+            : params.error === 'credentials'
+              ? 'Fel e-postadress eller lösenord.'
+              : null;
 
   return (
     <main id="innehall">
