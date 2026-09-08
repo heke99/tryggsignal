@@ -465,7 +465,9 @@ export default async function CaseWorkspacePage({
                   </h3>
                   <p className="meta">
                     Källa: {property.source}
-                    {property.source_version === null ? '' : ` · version ${property.source_version}`}
+                    {property.source_version === null
+                      ? ''
+                      : ` · version ${property.source_version}`}
                     {property.municipality_code === null
                       ? ''
                       : ` · kommunkod ${property.municipality_code}`}
@@ -510,7 +512,9 @@ export default async function CaseWorkspacePage({
                     {property.buildings.map((building) => (
                       <li key={building.id}>
                         {building.building_designation ?? 'Byggnad'}
-                        {building.building_purpose === null ? '' : ` · ${building.building_purpose}`}
+                        {building.building_purpose === null
+                          ? ''
+                          : ` · ${building.building_purpose}`}
                         {building.year_built === null ? '' : ` · byggår ${building.year_built}`}
                         {building.gross_floor_area === null
                           ? ''
