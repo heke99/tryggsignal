@@ -8,13 +8,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const returnTo = safeReturnTo(request.nextUrl.searchParams.get('returnTo'));
   const refreshed = await refreshSession(context);
 
-  const target = request.nextUrl.clone();
   if (refreshed) {
-    target.pathname = returnTo;
-    target.search = '';
-  } else {
-    target.pathname = '/login';
-    target.search = `?error=session&returnTo=${encodeURIComponent(returnTo)}`;
+    // safeReturnTo only accepts same-site absolute paths, so resolving it against
+    // the current request preserves path + query without creating an open redirect.
+    return NextResponse.redirect(new URL(returnTo, request.url));
   }
-  return NextResponse.redirect(target);
+
+  const login = request.nextUrl.clone();
+  login.pathname = '/login';
+  login.search = `?error=session&returnTo=${encodeURIComponent(returnTo)}`;
+  return NextResponse.redirect(login);
 }
