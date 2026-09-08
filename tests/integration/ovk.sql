@@ -172,7 +172,7 @@ begin
     (select v from g10_ids where k='obligation'),
     'FTX-AGGREGAT-1',
     'FTX',
-    current_date - interval '40 months'
+    (current_date - interval '40 months')::date
   ) into v_object;
 
   perform pg_temp.g10_clear_subject();
