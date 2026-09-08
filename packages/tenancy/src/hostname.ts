@@ -34,11 +34,17 @@ export function normalizeHostname(rawHost: string | null | undefined): HostnameR
   if (host.length === 0) return { ok: false, error: 'EMPTY' };
   if (host.startsWith('[')) return { ok: false, error: 'IP_LITERAL_NOT_ALLOWED' };
 
-  // Strip an explicit port, validating it rather than silently ignoring garbage.
+  // Strip one explicit port, but reject ambiguous/double-port input. IPv6
+  // literals are already refused above, so more than one colon is never valid.
+  const colonCount = [...host].filter((character) => character === ':').length;
+  if (colonCount > 1) return { ok: false, error: 'INVALID_PORT' };
+
   const portSeparator = host.lastIndexOf(':');
   if (portSeparator !== -1) {
     const port = host.slice(portSeparator + 1);
     if (!/^\d{1,5}$/.test(port)) return { ok: false, error: 'INVALID_PORT' };
+    const numericPort = Number(port);
+    if (numericPort < 1 || numericPort > 65535) return { ok: false, error: 'INVALID_PORT' };
     host = host.slice(0, portSeparator);
   }
 
@@ -85,8 +91,17 @@ export function requestHostname(
   options: RequestHostOptions,
 ): HostnameResult {
   const forwarded = options.trustForwardedHost ? headers.get('x-forwarded-host') : null;
-  // A forwarded header may carry a comma-separated chain; the first entry is the
-  // client-facing host recorded by the outermost trusted proxy.
-  const candidate = forwarded?.split(',')[0]?.trim() || headers.get('host');
-  return normalizeHostname(candidate);
+
+  if (forwarded !== null) {
+    // A trusted edge must hand us exactly one client-facing hostname. Accepting
+    // comma-separated chains makes proxy interpretation ambiguous and enables
+    // host-smuggling differences between layers.
+    const parts = forwarded.split(',').map((part) => part.trim());
+    if (parts.length !== 1 || parts[0] === '') {
+      return { ok: false, error: 'INVALID_CHARACTERS' };
+    }
+    return normalizeHostname(parts[0]);
+  }
+
+  return normalizeHostname(headers.get('host'));
 }
