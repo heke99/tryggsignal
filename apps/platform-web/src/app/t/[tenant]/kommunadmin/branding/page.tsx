@@ -1,10 +1,7 @@
 import Image from 'next/image';
 import { requireTenantPermission } from '@/lib/auth/guard';
 import { currentTenant } from '@/lib/tenant/context';
-import {
-  defaultTenantBranding,
-  listTenantBrandingVersions,
-} from '@/lib/tenant/branding';
+import { defaultTenantBranding, listTenantBrandingVersions } from '@/lib/tenant/branding';
 import { contrastRatio, validateBranding } from '@tryggsignal/tenancy';
 import {
   publishBrandingAction,
@@ -44,10 +41,7 @@ export default async function BrandingAdmin({ searchParams }: PageProps) {
   const tenant = await currentTenant();
   await requireTenantPermission(tenant, 'branding.manage', '/kommunadmin/branding');
 
-  const [versions, params] = await Promise.all([
-    listTenantBrandingVersions(tenant),
-    searchParams,
-  ]);
+  const [versions, params] = await Promise.all([listTenantBrandingVersions(tenant), searchParams]);
   const draft = versions.find((version) => version.status === 'DRAFT');
   const published = versions.find((version) => version.status === 'PUBLISHED');
   const editing = draft ?? published ?? defaultTenantBranding(tenant);
@@ -225,11 +219,7 @@ export default async function BrandingAdmin({ searchParams }: PageProps) {
           <label>
             Rubrik på inloggning
             <br />
-            <input
-              name="loginHeading"
-              maxLength={160}
-              defaultValue={editing.loginHeading ?? ''}
-            />
+            <input name="loginHeading" maxLength={160} defaultValue={editing.loginHeading ?? ''} />
           </label>
         </p>
         <p>
