@@ -150,7 +150,7 @@ $$;
 -- Tenant-level administration: authentication is not authorization. Only the
 -- tenant administrator receives branding.manage (P36) and domain.manage (P37).
 -- ---------------------------------------------------------------------------
-do $
+do $$
 declare
   v_admin_sub uuid := (select au.id from auth.users au join identity.users iu on iu.auth_user_id = au.id
     where iu.id = (select v from t_ids where k = 'admin'));
@@ -185,7 +185,7 @@ begin
     raise exception 'RLS matrix: case worker unexpectedly received domain.manage';
   end if;
 end;
-$;
+$$;
 
 -- ---------------------------------------------------------------------------
 -- SELECT matrix: cases, documents and the search index per subject type
