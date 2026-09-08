@@ -42,6 +42,14 @@ import {
   scheduleSupervisionInspectionAction,
 } from '@/lib/data/supervision-actions';
 import { loadCaseSupervision } from '@/lib/data/supervision';
+import {
+  linkOvkObjectAction,
+  recordOvkFindingAction,
+  recordOvkProtocolAction,
+  resolveOvkFindingAction,
+} from '@/lib/data/ovk-actions';
+import { loadCaseOvk } from '@/lib/data/ovk';
+
 import { DocumentDownloadButton } from './DocumentDownloadButton';
 import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
@@ -67,6 +75,7 @@ const TABS = [
   'Remisser',
   'Beslut',
   'Inspektioner',
+  'OVK',
   'AI',
   'Revision',
 ] as const;
@@ -117,6 +126,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   'supervision-followup': 'Uppföljningen kunde inte skapas.',
   'supervision-followup-complete': 'Uppföljningen kunde inte slutföras.',
   'supervision-close': 'Tillsynen kunde inte stängas. Öppet arbete kan återstå.',
+  'ovk-object': 'OVK-objektet kunde inte registreras eller länkas.',
+  'ovk-protocol': 'OVK-protokollet kunde inte registreras. Kontrollera att dokumentversionen är CLEAN.',
+  'ovk-finding': 'OVK-fyndet kunde inte registreras.',
+  'ovk-resolve': 'OVK-fyndet kunde inte markeras som löst.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -159,6 +172,10 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'supervision-followup': 'Uppföljningen har skapats.',
   'supervision-followup-complete': 'Uppföljningen har slutförts.',
   'supervision-closed': 'PBL-tillsynen har stängts.',
+  'ovk-object': 'OVK-objektet har registrerats och länkas till ärendet.',
+  'ovk-protocol': 'OVK-protokollet har registrerats och nästa kontroll har räknats om.',
+  'ovk-finding': 'OVK-fyndet har registrerats i tillsynskön.',
+  'ovk-resolve': 'OVK-fyndet är markerat som löst.',
 };
 
 export default async function CaseWorkspacePage({
@@ -190,11 +207,12 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const [completeness, referrals, decisions, supervision] = await Promise.all([
+  const [completeness, referrals, decisions, supervision, ovk] = await Promise.all([
     loadCaseCompleteness(tenant, caseId, header.authority_id),
     loadCaseReferrals(tenant, caseId),
     loadCaseDecisions(tenant, caseId),
     loadCaseSupervision(tenant, caseId),
+    loadCaseOvk(tenant, caseId),
   ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
