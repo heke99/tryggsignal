@@ -37,6 +37,7 @@ const nextConfig: NextConfig = {
     '@tryggsignal/config',
     '@tryggsignal/database',
     '@tryggsignal/domain',
+    '@tryggsignal/marketing',
     '@tryggsignal/observability',
     '@tryggsignal/tenancy',
   ],

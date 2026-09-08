@@ -39,3 +39,47 @@ Each status change is written to `platform.domain_events` by trigger.
    disabling, and update `platform.tenants.canonical_hostname` in the same transaction.
 3. Record the reason in `platform.domain_events`; on permanent removal also insert into
    `platform.domain_release_history` so the hostname cannot be silently taken over.
+
+## The platform's own zone (`tryggsignal.se`)
+
+The platform zone is different from a municipality's zone: it has to serve a wildcard
+(`*.tryggsignal.se`), and it also carries mail for the company. Both facts constrain how it is
+hosted.
+
+### Nameservers
+
+Wildcard records are the deciding factor. A registrar that will not accept a `*` label in its DNS
+editor cannot host this zone, whatever else it does well. Delegate the zone to a DNS provider that
+accepts wildcards — Vercel DNS (`ns1.vercel-dns.com`, `ns2.vercel-dns.com`) or Cloudflare — and keep
+the registrar for registration only.
+
+Delegating the zone moves **every** record, not just the web records. Before changing nameservers,
+copy the existing zone into the new provider — `MX`, `SPF`, `DKIM`, `DMARC`, `CNAME` and `TXT`
+verification records included — and only then switch. A `.se` delegation is additionally checked by
+IIS before it is accepted, so a broken zone at the new provider will delay or reject the change.
+
+### Records
+
+| Record                       | Name                  | Points to            | Why                          |
+| ---------------------------- | --------------------- | -------------------- | ---------------------------- |
+| `A` / `ALIAS`                | `@`                   | the platform project | marketing surface            |
+| `CNAME`                      | `www`                 | the platform project | marketing surface            |
+| `CNAME`                      | `*`                   | the platform project | every municipality subdomain |
+| `MX`, `SPF`, `DKIM`, `DMARC` | per the mail provider | the mail provider    | company mail                 |
+
+### Mail
+
+The zone sends and receives mail, so it must **not** carry an anti-spoof-only configuration
+(`v=spf1 -all` with a null `MX`). Publish the mail provider's own `MX`, `SPF` and `DKIM` records.
+Keep `DMARC` at `p=none` with a reporting address while the alignment of `SPF` and `DKIM` is being
+confirmed, and move to `p=quarantine` and then `p=reject` only once the reports show that legitimate
+mail passes.
+
+Transactional mail sent by the platform (notifications to applicants, referral reminders) must be
+sent from a subdomain of its own — for example `notiser.tryggsignal.se` — with its own `SPF` and
+`DKIM`. A delivery problem in bulk notifications then cannot damage the reputation of the domain the
+company's own mail is sent from.
+
+A municipality's custom domain is the municipality's zone, not ours. Never ask a municipality to
+change its `MX` or `SPF` records to point a hostname at this platform: a `CNAME` on the specific
+hostname (`bygglov.kommun.se`) is all that is required, and it leaves their mail untouched.

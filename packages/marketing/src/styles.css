@@ -1,0 +1,433 @@
+/* Masterplan 97/153: the public site uses the same token approach as the
+   product — no tenant-supplied CSS, visible focus, AA contrast in both themes. */
+.tsm {
+  --tsm-ink: #0b1a12;
+  --tsm-ink-soft: #40534a;
+  --tsm-bg: #ffffff;
+  --tsm-bg-alt: #f4f7f5;
+  --tsm-line: #d7e0da;
+  --tsm-brand: #14532d;
+  --tsm-brand-ink: #ffffff;
+  --tsm-accent: #8a4b06;
+  --tsm-radius: 14px;
+  --tsm-max: 68rem;
+
+  color: var(--tsm-ink);
+  background: var(--tsm-bg);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-color-scheme: dark) {
+  .tsm {
+    --tsm-ink: #eef4f0;
+    --tsm-ink-soft: #a9bcb2;
+    --tsm-bg: #0b1410;
+    --tsm-bg-alt: #121e18;
+    --tsm-line: #26362d;
+    --tsm-brand: #8fd6a8;
+    --tsm-brand-ink: #06120c;
+    --tsm-accent: #f0b878;
+  }
+}
+
+.tsm *,
+.tsm *::before,
+.tsm *::after {
+  box-sizing: border-box;
+}
+
+.tsm :focus-visible {
+  outline: 3px solid var(--tsm-accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.tsm__skip {
+  position: absolute;
+  left: -9999px;
+}
+
+.tsm__skip:focus {
+  left: 1rem;
+  top: 1rem;
+  z-index: 20;
+  background: var(--tsm-bg);
+  color: var(--tsm-ink);
+  padding: 0.6rem 0.9rem;
+  border: 2px solid var(--tsm-brand);
+  border-radius: 8px;
+}
+
+.tsm__wrap {
+  width: 100%;
+  max-width: var(--tsm-max);
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+}
+
+/* ---------- header ---------- */
+
+.tsm__header {
+  border-bottom: 1px solid var(--tsm-line);
+  position: sticky;
+  top: 0;
+  background: color-mix(in srgb, var(--tsm-bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+.tsm__headerInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4rem;
+  flex-wrap: wrap;
+}
+
+.tsm__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+  color: var(--tsm-ink);
+  text-decoration: none;
+}
+
+.tsm__mark {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: none;
+}
+
+.tsm__nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.tsm__nav a {
+  color: var(--tsm-ink-soft);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+
+.tsm__nav a:hover {
+  color: var(--tsm-ink);
+  text-decoration: underline;
+}
+
+/* ---------- buttons ---------- */
+
+.tsm__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.15rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 1rem;
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.tsm__btn--primary {
+  background: var(--tsm-brand);
+  color: var(--tsm-brand-ink);
+}
+
+.tsm__btn--primary:hover {
+  background: color-mix(in srgb, var(--tsm-brand) 86%, black);
+}
+
+.tsm__btn--ghost {
+  border-color: var(--tsm-line);
+  color: var(--tsm-ink);
+  background: var(--tsm-bg);
+}
+
+.tsm__btn--ghost:hover {
+  border-color: var(--tsm-brand);
+}
+
+/* ---------- sections ---------- */
+
+.tsm__section {
+  padding-block: clamp(3rem, 6vw, 5.5rem);
+  border-top: 1px solid var(--tsm-line);
+}
+
+.tsm__section--alt {
+  background: var(--tsm-bg-alt);
+}
+
+.tsm__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--tsm-accent);
+  margin: 0 0 0.9rem;
+}
+
+.tsm h1 {
+  font-size: clamp(2.1rem, 1.3rem + 3.2vw, 3.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  margin: 0 0 1.1rem;
+  max-width: 18ch;
+}
+
+.tsm h2 {
+  font-size: clamp(1.5rem, 1.1rem + 1.5vw, 2.1rem);
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+  max-width: 24ch;
+}
+
+.tsm h3 {
+  font-size: 1.05rem;
+  margin: 0 0 0.4rem;
+  letter-spacing: -0.01em;
+}
+
+.tsm__lead {
+  font-size: clamp(1.05rem, 0.98rem + 0.35vw, 1.2rem);
+  color: var(--tsm-ink-soft);
+  max-width: 60ch;
+  margin: 0 0 1.9rem;
+}
+
+.tsm__sectionLead {
+  color: var(--tsm-ink-soft);
+  max-width: 62ch;
+  margin: 0 0 2.25rem;
+}
+
+/* ---------- hero ---------- */
+
+.tsm__hero {
+  padding-block: clamp(3.5rem, 7vw, 6.5rem);
+  background: radial-gradient(
+      60rem 28rem at 12% -12%,
+      color-mix(in srgb, var(--tsm-brand) 14%, transparent),
+      transparent 70%
+    ),
+    var(--tsm-bg);
+}
+
+.tsm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 2.5rem;
+}
+
+.tsm__facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.75rem 1.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 1.5rem 0 0;
+  border-top: 1px solid var(--tsm-line);
+}
+
+.tsm__facts li {
+  display: flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  font-size: 0.95rem;
+  color: var(--tsm-ink-soft);
+}
+
+.tsm__facts li::before {
+  content: '';
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--tsm-brand);
+}
+
+/* ---------- grids ---------- */
+
+.tsm__grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tsm__card {
+  background: var(--tsm-bg);
+  border: 1px solid var(--tsm-line);
+  border-radius: var(--tsm-radius);
+  padding: 1.25rem 1.35rem;
+}
+
+.tsm__card p {
+  margin: 0;
+  color: var(--tsm-ink-soft);
+  font-size: 0.95rem;
+}
+
+.tsm__num {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--tsm-accent);
+  margin-bottom: 0.5rem;
+}
+
+/* ---------- split ---------- */
+
+.tsm__split {
+  display: grid;
+  gap: clamp(1.75rem, 4vw, 3.5rem);
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  align-items: start;
+}
+
+.tsm__checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.tsm__checks li {
+  display: flex;
+  gap: 0.65rem;
+  align-items: baseline;
+  color: var(--tsm-ink-soft);
+}
+
+.tsm__checks li::before {
+  content: '✓';
+  color: var(--tsm-brand);
+  font-weight: 700;
+  flex: none;
+}
+
+.tsm__hosts {
+  border: 1px solid var(--tsm-line);
+  border-radius: var(--tsm-radius);
+  overflow: hidden;
+  background: var(--tsm-bg);
+}
+
+.tsm__host {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--tsm-line);
+  font-size: 0.95rem;
+}
+
+.tsm__host:last-child {
+  border-bottom: 0;
+}
+
+.tsm__host code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.tsm__host span {
+  margin-left: auto;
+  color: var(--tsm-ink-soft);
+  font-size: 0.85rem;
+}
+
+/* ---------- cta ---------- */
+
+.tsm__cta {
+  background: var(--tsm-brand);
+  color: var(--tsm-brand-ink);
+  border-radius: var(--tsm-radius);
+  padding: clamp(1.75rem, 4vw, 3rem);
+}
+
+.tsm__cta h2,
+.tsm__cta p {
+  color: inherit;
+}
+
+.tsm__cta p {
+  max-width: 58ch;
+  margin: 0 0 1.6rem;
+}
+
+.tsm__cta .tsm__btn {
+  background: var(--tsm-brand-ink);
+  color: var(--tsm-brand);
+}
+
+/* ---------- footer ---------- */
+
+.tsm__footer {
+  border-top: 1px solid var(--tsm-line);
+  padding-block: 2.5rem;
+  color: var(--tsm-ink-soft);
+  font-size: 0.9rem;
+}
+
+.tsm__footerInner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tsm__footer a {
+  color: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tsm * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* The platform app applies its own global element styles (globals.css). Reset the
+   ones that would otherwise reach into this component, so both deployments of the
+   public site render identically. */
+.tsm main {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tsm h1,
+.tsm h2,
+.tsm h3 {
+  color: var(--tsm-ink);
+}
+
+.tsm__lead a,
+.tsm__sectionLead a,
+.tsm__card a,
+.tsm__checks a {
+  color: var(--tsm-brand);
+}
