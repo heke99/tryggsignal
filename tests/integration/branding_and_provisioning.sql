@@ -136,7 +136,68 @@ begin
 end;
 $$;
 
--- 7. Offboarding disables the domains and records a tombstone (masterplan 167/194).
+-- 7. Cross-tenant branding assets are refused even through privileged writes.
+do $
+declare
+  v_other_tenant uuid;
+  v_other_asset uuid;
+  v_draft uuid;
+  v_blocked boolean := false;
+begin
+  insert into platform.tenants (
+    slug, display_name, status, canonical_hostname, auth_configuration_reference
+  )
+  values ('annanbranding', 'Annan branding', 'PROVISIONING',
+          'annanbranding.tryggsignal.se', 'auth/annan')
+  returning id into v_other_tenant;
+
+  insert into platform.branding_assets (
+    tenant_id, asset_kind, object_path, sha256, mime_type, width, height, size_bytes
+  )
+  values (
+    v_other_tenant, 'LOGO', v_other_tenant::text || '/asset.png',
+    repeat('a', 64), 'image/png', 64, 64, 128
+  )
+  returning id into v_other_asset;
+
+  select id into v_draft
+  from platform.tenant_branding
+  where tenant_id = (select v from t where k = 'tenant') and status = 'DRAFT';
+
+  begin
+    update platform.tenant_branding set logo_asset_id = v_other_asset where id = v_draft;
+  exception when check_violation then
+    v_blocked := true;
+  end;
+
+  if not v_blocked then
+    raise exception 'Cross-tenant branding asset was accepted';
+  end if;
+end;
+$;
+
+-- 8. Branding service RPCs are not client APIs.
+do $
+begin
+  if has_function_privilege(
+    'authenticated',
+    'public.resolve_tenant_branding(uuid,integer)',
+    'EXECUTE'
+  ) then
+    raise exception 'authenticated can execute service-only branding resolver';
+  end if;
+
+  if not has_function_privilege(
+    'service_role',
+    'public.resolve_tenant_branding(uuid,integer)',
+    'EXECUTE'
+  ) then
+    raise exception 'service_role cannot execute branding resolver';
+  end if;
+end;
+$;
+
+-- 9. Offboarding disables the domains and records a tombstone (masterplan 167/194).
 do $$
 declare v_released integer; v_active integer; v_tombstones integer;
 begin
@@ -154,7 +215,7 @@ begin
 end;
 $$;
 
--- 8. An offboarding without a recorded reason is refused.
+-- 10. An offboarding without a recorded reason is refused.
 do $$
 declare v_blocked boolean := false;
 begin
