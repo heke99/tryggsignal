@@ -1068,3 +1068,238 @@ export async function queueReferralFollowupAction(formData: FormData): Promise<v
   revalidatePath(detailPath(caseId));
   redirect(`${detailPath(caseId)}?ok=referral-followup#remisser`);
 }
+
+
+function nonEmptyLines(value: string, maxItems = 100): string[] {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, maxItems);
+}
+
+/** Phase G8: create an empty decision shell attached to an authorized case. */
+export async function createDecisionAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionType = field(formData, 'decisionType');
+  const decisionNumber = field(formData, 'decisionNumber');
+
+  if (
+    caseId === null ||
+    decisionType.length < 2 ||
+    decisionType.length > 120 ||
+    decisionNumber.length > 120
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('create_for_user', {
+    p_case_id: caseId,
+    p_decision_type: decisionType,
+    p_decision_number: decisionNumber || null,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-create#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-created#beslut`);
+}
+
+export async function addDecisionVersionAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionId = uuid(field(formData, 'decisionId'));
+  const body = field(formData, 'body');
+  const conditions = nonEmptyLines(field(formData, 'conditions')).map((text) => ({ text }));
+  const legalReferences = nonEmptyLines(field(formData, 'legalReferences')).map((reference) => ({
+    reference,
+  }));
+  const generatedBy = field(formData, 'generatedBy').toUpperCase();
+
+  if (
+    caseId === null ||
+    decisionId === null ||
+    body.length < 3 ||
+    body.length > 100_000 ||
+    conditions.some((item) => item.text.length > 2000) ||
+    legalReferences.some((item) => item.reference.length > 2000) ||
+    !['HUMAN', 'TEMPLATE'].includes(generatedBy)
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('add_version_for_user', {
+    p_decision_id: decisionId,
+    p_body: body,
+    p_conditions: conditions,
+    p_legal_references: legalReferences,
+    p_generated_by: generatedBy,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-version#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-version#beslut`);
+}
+
+export async function submitDecisionReviewAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionId = uuid(field(formData, 'decisionId'));
+  if (caseId === null || decisionId === null) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('submit_review_for_user', {
+    p_decision_id: decisionId,
+  });
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-review#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-review#beslut`);
+}
+
+export async function approveDecisionAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionId = uuid(field(formData, 'decisionId'));
+  if (caseId === null || decisionId === null) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('approve_for_user', {
+    p_decision_id: decisionId,
+  });
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-approve#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-approved#beslut`);
+}
+
+export async function decideDecisionAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionId = uuid(field(formData, 'decisionId'));
+  const delegationReference = field(formData, 'delegationReference');
+  const appealRaw = field(formData, 'appealDeadlineAt');
+  const appeal = appealRaw === '' ? null : new Date(appealRaw);
+
+  if (
+    caseId === null ||
+    decisionId === null ||
+    delegationReference.length < 2 ||
+    delegationReference.length > 500 ||
+    (appeal !== null && (Number.isNaN(appeal.getTime()) || appeal.getTime() <= Date.now()))
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('decide_for_user', {
+    p_decision_id: decisionId,
+    p_delegation_reference: delegationReference,
+    p_appeal_deadline_at: appeal?.toISOString() ?? null,
+  });
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-decide#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-decided#beslut`);
+}
+
+export async function signDecisionAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionId = uuid(field(formData, 'decisionId'));
+  const method = field(formData, 'method').toUpperCase();
+  const providerReference = field(formData, 'providerReference');
+
+  if (
+    caseId === null ||
+    decisionId === null ||
+    !['MANUAL_ATTESTATION', 'BANKID', 'QUALIFIED_ELECTRONIC', 'OTHER'].includes(method) ||
+    providerReference.length > 1000 ||
+    (method !== 'MANUAL_ATTESTATION' && providerReference.length < 2)
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('sign_for_user', {
+    p_decision_id: decisionId,
+    p_method: method,
+    p_provider_reference: providerReference || null,
+    p_evidence: { source: 'case-workspace', recorded_at: new Date().toISOString() },
+  });
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-sign#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-signed#beslut`);
+}
+
+export async function issueDecisionAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const decisionId = uuid(field(formData, 'decisionId'));
+  const recipientPartyId = uuid(field(formData, 'recipientPartyId'));
+  const channel = field(formData, 'channel').toUpperCase();
+
+  if (
+    caseId === null ||
+    decisionId === null ||
+    recipientPartyId === null ||
+    !COMMUNICATION_CHANNELS.has(channel)
+  ) {
+    redirect(
+      caseId === null
+        ? '/handlaggning?error=validation'
+        : `${detailPath(caseId)}?error=validation#beslut`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('decision').rpc('issue_for_user', {
+    p_decision_id: decisionId,
+    p_recipient_party_id: recipientPartyId,
+    p_channel: channel,
+  });
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=decision-issue#beslut`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=decision-queued#beslut`);
+}
