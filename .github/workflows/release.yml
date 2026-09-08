@@ -106,6 +106,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_decisions.sql
       - name: G9 PBL supervision integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/pbl_supervision.sql
+      - name: G10 OVK integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/ovk.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration

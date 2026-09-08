@@ -42,6 +42,14 @@ import {
   scheduleSupervisionInspectionAction,
 } from '@/lib/data/supervision-actions';
 import { loadCaseSupervision } from '@/lib/data/supervision';
+import {
+  linkOvkObjectAction,
+  recordOvkFindingAction,
+  recordOvkProtocolAction,
+  resolveOvkFindingAction,
+} from '@/lib/data/ovk-actions';
+import { loadCaseOvk } from '@/lib/data/ovk';
+
 import { DocumentDownloadButton } from './DocumentDownloadButton';
 import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
@@ -67,6 +75,7 @@ const TABS = [
   'Remisser',
   'Beslut',
   'Inspektioner',
+  'OVK',
   'AI',
   'Revision',
 ] as const;
@@ -117,6 +126,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   'supervision-followup': 'Uppföljningen kunde inte skapas.',
   'supervision-followup-complete': 'Uppföljningen kunde inte slutföras.',
   'supervision-close': 'Tillsynen kunde inte stängas. Öppet arbete kan återstå.',
+  'ovk-object': 'OVK-objektet kunde inte registreras eller länkas.',
+  'ovk-protocol':
+    'OVK-protokollet kunde inte registreras. Kontrollera att dokumentversionen är CLEAN.',
+  'ovk-finding': 'OVK-fyndet kunde inte registreras.',
+  'ovk-resolve': 'OVK-fyndet kunde inte markeras som löst.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -159,6 +173,10 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'supervision-followup': 'Uppföljningen har skapats.',
   'supervision-followup-complete': 'Uppföljningen har slutförts.',
   'supervision-closed': 'PBL-tillsynen har stängts.',
+  'ovk-object': 'OVK-objektet har registrerats och länkas till ärendet.',
+  'ovk-protocol': 'OVK-protokollet har registrerats och nästa kontroll har räknats om.',
+  'ovk-finding': 'OVK-fyndet har registrerats i tillsynskön.',
+  'ovk-resolve': 'OVK-fyndet är markerat som löst.',
 };
 
 export default async function CaseWorkspacePage({
@@ -190,11 +208,12 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const [completeness, referrals, decisions, supervision] = await Promise.all([
+  const [completeness, referrals, decisions, supervision, ovk] = await Promise.all([
     loadCaseCompleteness(tenant, caseId, header.authority_id),
     loadCaseReferrals(tenant, caseId),
     loadCaseDecisions(tenant, caseId),
     loadCaseSupervision(tenant, caseId),
+    loadCaseOvk(tenant, caseId),
   ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
@@ -2310,6 +2329,381 @@ export default async function CaseWorkspacePage({
                 {supervision.closeReason !== null && <p>{supervision.closeReason}</p>}
               </div>
             )}
+          </>
+        )}
+      </section>
+
+      <section id="ovk" aria-labelledby="h-ovk" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-ovk">OVK</h2>
+            <p className="meta">
+              Objekt, versionerad skyldighet, nästa kontroll, CLEAN protokoll och fynd hanteras
+              separat. Ett underkänt protokoll kan aldrig bli COMPLIANT enbart på grund av datum.
+            </p>
+          </div>
+          <Link className="button-secondary" href="/handlaggning/ovk">
+            Öppna OVK-kön
+          </Link>
+        </div>
+
+        {header.process_type !== 'OVK' ? (
+          <p className="meta">Det här ärendet är inte klassificerat som OVK.</p>
+        ) : (
+          <>
+            <details className="create-panel" open={ovk.objects.length === 0}>
+              <summary>Registrera eller länka OVK-objekt</summary>
+              {workspace.properties.length === 0 || ovk.obligations.length === 0 ? (
+                <p className="meta">
+                  Ärendet behöver minst en kopplad fastighet och en aktiv versionerad OVK-skyldighet
+                  innan objekt kan registreras.
+                </p>
+              ) : (
+                <form action={linkOvkObjectAction} className="form-grid compact-form">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <div className="form-field">
+                    <label htmlFor="ovkProperty">Fastighet</label>
+                    <select id="ovkProperty" name="propertyId" defaultValue="" required>
+                      <option value="" disabled>
+                        Välj fastighet
+                      </option>
+                      {workspace.properties.map((property) => (
+                        <option key={property.property_id} value={property.property_id}>
+                          {property.designation}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="ovkBuilding">Byggnad</label>
+                    <select id="ovkBuilding" name="buildingId" defaultValue="">
+                      <option value="">Fastighetsnivå</option>
+                      {workspace.properties.flatMap((property) =>
+                        property.buildings.map((building) => (
+                          <option key={building.id} value={building.id}>
+                            {property.designation} ·{' '}
+                            {building.building_designation ??
+                              building.building_purpose ??
+                              'Byggnad'}
+                          </option>
+                        )),
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="ovkObligation">Skyldighet</label>
+                    <select id="ovkObligation" name="obligationId" defaultValue="" required>
+                      <option value="" disabled>
+                        Välj skyldighet
+                      </option>
+                      {ovk.obligations.map((obligation) => (
+                        <option key={obligation.id} value={obligation.id}>
+                          {obligation.name} · {obligation.intervalMonths} mån
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="ovkObjectReference">Objektreferens</label>
+                    <input
+                      id="ovkObjectReference"
+                      name="objectReference"
+                      type="text"
+                      minLength={1}
+                      maxLength={300}
+                      placeholder="Exempel: FTX-1"
+                      required
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="ovkSystemType">Ventilationssystem</label>
+                    <input
+                      id="ovkSystemType"
+                      name="ventilationSystemType"
+                      type="text"
+                      maxLength={300}
+                      placeholder="FTX"
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="ovkLastPerformed">Senast utförd kontroll</label>
+                    <input id="ovkLastPerformed" name="lastPerformedAt" type="date" />
+                  </div>
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Registrera OVK-objekt</button>
+                  </div>
+                </form>
+              )}
+            </details>
+
+            <div className="entity-list">
+              {ovk.objects.map((object) => {
+                const property = workspace.properties.find(
+                  (candidate) => candidate.property_id === object.propertyId,
+                );
+                const building = workspace.properties
+                  .flatMap((candidate) => candidate.buildings)
+                  .find((candidate) => candidate.id === object.buildingId);
+                const obligation = ovk.obligations.find(
+                  (candidate) => candidate.id === object.obligationId,
+                );
+
+                return (
+                  <article className="entity-item" key={object.id}>
+                    <div className="entity-heading">
+                      <div>
+                        <h3>
+                          {object.objectReference ?? 'OVK-objekt'}{' '}
+                          <span className="status-badge">{object.status}</span>
+                        </h3>
+                        <p className="meta">
+                          {property?.designation ?? 'Fastighet saknas'}
+                          {building === undefined
+                            ? ''
+                            : ' · ' +
+                              (building.building_designation ??
+                                building.building_purpose ??
+                                'Byggnad')}
+                          {object.ventilationSystemType === null
+                            ? ''
+                            : ' · ' + object.ventilationSystemType}
+                        </p>
+                        <p className="meta">
+                          {obligation?.name ?? 'OVK'} · nästa kontroll {object.nextDueAt ?? 'okänd'}{' '}
+                          · risk {object.riskScore ?? '—'}
+                          {object.lastProtocolResult === null
+                            ? ''
+                            : ' · senaste protokoll ' + object.lastProtocolResult}
+                        </p>
+                        {obligation?.legalReference !== null &&
+                          obligation?.legalReference !== undefined && (
+                            <p className="meta">Rättslig källa: {obligation.legalReference}</p>
+                          )}
+                      </div>
+                    </div>
+
+                    <h4>Protokoll ({object.protocols.length})</h4>
+                    {object.protocols.length > 0 && (
+                      <ol>
+                        {object.protocols.map((protocol) => (
+                          <li key={protocol.id}>
+                            {protocol.performedAt} ·{' '}
+                            <span className="status-badge">{protocol.result}</span>
+                            {protocol.inspectorName === null ? '' : ' · ' + protocol.inspectorName}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+
+                    <details className="create-panel">
+                      <summary>Registrera OVK-protokoll</summary>
+                      {cleanDocumentVersions.length === 0 ? (
+                        <p className="meta">
+                          Ladda först upp protokollet under Handlingar och invänta att
+                          säkerhetskontrollen ger status CLEAN.
+                        </p>
+                      ) : (
+                        <form action={recordOvkProtocolAction} className="form-grid compact-form">
+                          <input type="hidden" name="caseId" value={header.id} />
+                          <input type="hidden" name="objectId" value={object.id} />
+                          <div className="form-field">
+                            <label htmlFor={'ovk-performed-' + object.id}>Kontrolldatum</label>
+                            <input
+                              id={'ovk-performed-' + object.id}
+                              name="performedAt"
+                              type="date"
+                              required
+                            />
+                          </div>
+                          <div className="form-field">
+                            <label htmlFor={'ovk-result-' + object.id}>Resultat</label>
+                            <select
+                              id={'ovk-result-' + object.id}
+                              name="result"
+                              defaultValue="APPROVED"
+                            >
+                              <option value="APPROVED">Godkänd</option>
+                              <option value="APPROVED_WITH_REMARKS">
+                                Godkänd med anmärkningar
+                              </option>
+                              <option value="NOT_APPROVED">Inte godkänd</option>
+                            </select>
+                          </div>
+                          <div className="form-field form-field-wide">
+                            <label htmlFor={'ovk-document-' + object.id}>
+                              CLEAN protokollversion
+                            </label>
+                            <select
+                              id={'ovk-document-' + object.id}
+                              name="documentVersionId"
+                              defaultValue=""
+                              required
+                            >
+                              <option value="" disabled>
+                                Välj säkerhetskontrollerad version
+                              </option>
+                              {cleanDocumentVersions.map((version) => (
+                                <option key={version.versionId} value={version.versionId}>
+                                  {version.documentTitle} · v{version.version}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="form-field">
+                            <label htmlFor={'ovk-inspector-' + object.id}>Kontrollant</label>
+                            <input
+                              id={'ovk-inspector-' + object.id}
+                              name="inspectorName"
+                              type="text"
+                              maxLength={300}
+                            />
+                          </div>
+                          <div className="form-field">
+                            <label htmlFor={'ovk-inspector-org-' + object.id}>
+                              Kontrollorganisation
+                            </label>
+                            <input
+                              id={'ovk-inspector-org-' + object.id}
+                              name="inspectorOrganization"
+                              type="text"
+                              maxLength={300}
+                            />
+                          </div>
+                          <div className="form-field form-field-wide">
+                            <label htmlFor={'ovk-notes-' + object.id}>Notering</label>
+                            <textarea
+                              id={'ovk-notes-' + object.id}
+                              name="notes"
+                              rows={3}
+                              maxLength={10000}
+                            />
+                          </div>
+                          <div className="form-actions form-field-wide">
+                            <button type="submit">Registrera protokoll</button>
+                          </div>
+                        </form>
+                      )}
+                    </details>
+
+                    <h4>OVK-fynd ({object.findings.length})</h4>
+                    <div className="entity-list">
+                      {object.findings.map((finding) => (
+                        <article className="entity-item" key={finding.id}>
+                          <strong>
+                            {finding.findingType}{' '}
+                            <span className="status-badge">{finding.severity}</span>{' '}
+                            <span className="status-badge">{finding.status}</span>
+                          </strong>
+                          {finding.description !== null && <p>{finding.description}</p>}
+                          {finding.dueAt !== null && (
+                            <p className="meta">
+                              Följ upp senast {finding.dueAt.slice(0, 16).replace('T', ' ')}
+                            </p>
+                          )}
+                          {finding.resolutionNote !== null && (
+                            <p className="meta">Resolution: {finding.resolutionNote}</p>
+                          )}
+                          {(finding.status === 'OPEN' || finding.status === 'ACTION_REQUIRED') && (
+                            <form action={resolveOvkFindingAction} className="inline-action">
+                              <input type="hidden" name="caseId" value={header.id} />
+                              <input type="hidden" name="findingId" value={finding.id} />
+                              <label htmlFor={'ovk-resolution-' + finding.id}>Resolution</label>
+                              <input
+                                id={'ovk-resolution-' + finding.id}
+                                name="resolutionNote"
+                                type="text"
+                                minLength={2}
+                                maxLength={4000}
+                                required
+                              />
+                              <button type="submit" className="button-secondary">
+                                Markera löst
+                              </button>
+                            </form>
+                          )}
+                        </article>
+                      ))}
+                      {object.findings.length === 0 && <p className="meta">Inga OVK-fynd.</p>}
+                    </div>
+
+                    <details className="create-panel">
+                      <summary>Registrera OVK-fynd</summary>
+                      <form action={recordOvkFindingAction} className="form-grid compact-form">
+                        <input type="hidden" name="caseId" value={header.id} />
+                        <input type="hidden" name="objectId" value={object.id} />
+                        <div className="form-field">
+                          <label htmlFor={'ovk-finding-protocol-' + object.id}>Protokoll</label>
+                          <select
+                            id={'ovk-finding-protocol-' + object.id}
+                            name="protocolId"
+                            defaultValue=""
+                          >
+                            <option value="">Inget specifikt protokoll</option>
+                            {object.protocols.map((protocol) => (
+                              <option key={protocol.id} value={protocol.id}>
+                                {protocol.performedAt} · {protocol.result}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor={'ovk-finding-type-' + object.id}>Typ</label>
+                          <input
+                            id={'ovk-finding-type-' + object.id}
+                            name="findingType"
+                            type="text"
+                            minLength={2}
+                            maxLength={200}
+                            placeholder="LUFTFLODE"
+                            required
+                          />
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor={'ovk-finding-severity-' + object.id}>Allvar</label>
+                          <select
+                            id={'ovk-finding-severity-' + object.id}
+                            name="severity"
+                            defaultValue="REMARK"
+                          >
+                            <option value="INFO">Info</option>
+                            <option value="REMARK">Anmärkning</option>
+                            <option value="DEVIATION">Avvikelse</option>
+                            <option value="SERIOUS">Allvarlig</option>
+                          </select>
+                        </div>
+                        <div className="form-field">
+                          <label htmlFor={'ovk-finding-due-' + object.id}>Följ upp senast</label>
+                          <input
+                            id={'ovk-finding-due-' + object.id}
+                            name="dueAt"
+                            type="datetime-local"
+                          />
+                        </div>
+                        <div className="form-field form-field-wide">
+                          <label htmlFor={'ovk-finding-description-' + object.id}>
+                            Beskrivning
+                          </label>
+                          <textarea
+                            id={'ovk-finding-description-' + object.id}
+                            name="description"
+                            rows={4}
+                            minLength={2}
+                            maxLength={10000}
+                            required
+                          />
+                        </div>
+                        <div className="form-actions form-field-wide">
+                          <button type="submit">Registrera fynd</button>
+                        </div>
+                      </form>
+                    </details>
+                  </article>
+                );
+              })}
+              {ovk.objects.length === 0 && (
+                <p className="meta">Inga OVK-objekt är länkade till ärendet ännu.</p>
+              )}
+            </div>
           </>
         )}
       </section>
