@@ -19,7 +19,8 @@
     "next": "16.3.4",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "@tryggsignal/marketing": "workspace:*"
+    "@tryggsignal/marketing": "workspace:*",
+    "@tryggsignal/integrations": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "19.2.2",
