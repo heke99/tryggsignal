@@ -12,6 +12,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@tryggsignal/domain": "workspace:*"
+    "@tryggsignal/domain": "workspace:*",
+    "@tryggsignal/tenancy": "workspace:*"
   }
 }
