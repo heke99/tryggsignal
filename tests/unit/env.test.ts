@@ -22,7 +22,11 @@ describe('validateEnv (masterplan 85)', () => {
   });
 
   it('requires server-only tenant runtime and auth secrets', () => {
-    const { CONTROL_PLANE_SECRET_REFERENCE: _a, RATE_LIMIT_KEY_SECRET: _b, ...missing } = valid;
+    const missing = {
+      ...valid,
+      CONTROL_PLANE_SECRET_REFERENCE: undefined,
+      RATE_LIMIT_KEY_SECRET: undefined,
+    };
     expect(() => validateEnv(missing)).toThrow(/CONTROL_PLANE_SECRET_REFERENCE/);
     expect(() => validateEnv(missing)).toThrow(/RATE_LIMIT_KEY_SECRET/);
   });
