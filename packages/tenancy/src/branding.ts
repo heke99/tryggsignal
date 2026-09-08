@@ -168,3 +168,17 @@ export function brandingCssVariables(tokens: BrandingTokens): string {
   add('--ts-surface', tokens.surfaceVariant);
   return declarations.join(' ');
 }
+
+
+/** CSS custom properties suitable for React style props or other renderers. */
+export function brandingCssVariableMap(tokens: BrandingTokens): Readonly<Record<string, string>> {
+  const variables: Record<string, string> = {};
+  const add = (name: string, value: string | undefined): void => {
+    if (value !== undefined && HEX.test(value)) variables[name] = value;
+  };
+  add('--ts-primary', tokens.primaryColor);
+  add('--ts-secondary', tokens.secondaryColor);
+  add('--ts-accent', tokens.accentColor);
+  add('--ts-surface', tokens.surfaceVariant);
+  return variables;
+}
