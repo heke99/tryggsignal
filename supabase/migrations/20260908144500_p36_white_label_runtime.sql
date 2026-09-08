@@ -452,7 +452,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_deleted integer;
 begin
@@ -468,7 +468,7 @@ begin
   get diagnostics v_deleted = row_count;
   return v_deleted = 1;
 end;
-$;
+$$;
 
 revoke all on function public.discard_branding_asset(uuid, uuid) from public;
 grant execute on function public.discard_branding_asset(uuid, uuid) to service_role;
