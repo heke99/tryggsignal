@@ -10,6 +10,9 @@
 begin;
 
 create temporary table g_ids (k text primary key, v uuid) on commit drop;
+-- The test deliberately switches the session role to authenticated. Grant only
+-- the temporary fixture access that those role-switched assertions need.
+grant select, insert on g_ids to authenticated;
 
 insert into auth.users (id, email, aud, role)
 select gen_random_uuid(), k || '@g-lifecycle.invalid', 'authenticated', 'authenticated'
