@@ -1,12 +1,47 @@
 {
   "files": [],
   "references": [
-    { "path": "./packages/config" },
-    { "path": "./packages/observability" },
-    { "path": "./packages/domain" },
-    { "path": "./packages/authorization" },
-    { "path": "./packages/tenancy" },
-    { "path": "./packages/database" },
-    { "path": "./services/worker" }
+    {
+      "path": "./packages/config"
+    },
+    {
+      "path": "./packages/observability"
+    },
+    {
+      "path": "./packages/domain"
+    },
+    {
+      "path": "./packages/authorization"
+    },
+    {
+      "path": "./packages/tenancy"
+    },
+    {
+      "path": "./packages/database"
+    },
+    {
+      "path": "./services/worker"
+    },
+    {
+      "path": "./packages/rules"
+    },
+    {
+      "path": "./packages/deadlines"
+    },
+    {
+      "path": "./packages/integrations"
+    },
+    {
+      "path": "./packages/ai"
+    },
+    {
+      "path": "./packages/migration-engine"
+    },
+    {
+      "path": "./packages/search"
+    },
+    {
+      "path": "./packages/identity"
+    }
   ]
 }

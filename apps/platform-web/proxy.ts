@@ -1,5 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { TenantResolver, requestHostname } from '@tryggsignal/tenancy';
+import {
+  MemoryRateLimitStore,
+  TenantResolver,
+  checkRateLimit,
+  isPlatformOnlyPath,
+  requestHostname,
+  requiresSession,
+  tenantCookieName,
+} from '@tryggsignal/tenancy';
 import { tenantDirectory } from '@/lib/tenant/directory';
 import { INBOUND_TENANT_HEADERS, TENANT_HEADERS, tenantHeadersFor } from '@/lib/tenant/context';
 
@@ -24,6 +32,10 @@ const resolver = new TenantResolver(tenantDirectory(), {
   rootDomain: ROOT_DOMAIN,
   previewHostSuffix: PREVIEW_SUFFIX,
 });
+
+// Masterplan 84: one store per instance; the key carries the tenant so one
+// municipality cannot exhaust another's budget.
+const rateLimitStore = new MemoryRateLimitStore();
 
 const PLATFORM_SURFACE_PATHS = {
   MARKETING: '/marknad',
@@ -61,6 +73,45 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     forwarded.set(name, value);
   }
 
+  const { pathname } = request.nextUrl;
+
+  // Masterplan 177: the platform surface is never reachable from a municipality
+  // host, whatever the path looks like.
+  if (isPlatformOnlyPath(pathname)) {
+    return rewriteTo(request, '/domain-not-found', forwarded);
+  }
+
+  // Masterplan 84: the sign-in endpoint is the one that must not be brute-forced.
+  if (request.method === 'POST' && pathname === '/login') {
+    const decision = checkRateLimit(rateLimitStore, {
+      action: 'auth',
+      tenantId: resolution.context.tenantId,
+      subject: clientAddress(request),
+    });
+    if (!decision.allowed) {
+      return new NextResponse('För många inloggningsförsök. Försök igen om en stund.', {
+        status: 429,
+        headers: {
+          'retry-after': String(Math.ceil((decision.resetAt - Date.now()) / 1000)),
+          'content-type': 'text/plain; charset=utf-8',
+        },
+      });
+    }
+  }
+
+  // Route guard: send an unauthenticated request to the tenant's own login page
+  // rather than rendering a page that will fail its data reads. The cookie is
+  // host-bound, so its mere presence already proves it was issued for this host.
+  if (
+    requiresSession(pathname) &&
+    request.cookies.get(tenantCookieName(resolution.context, 'session')) === undefined
+  ) {
+    const login = request.nextUrl.clone();
+    login.pathname = '/login';
+    login.search = `?returnTo=${encodeURIComponent(pathname + request.nextUrl.search)}`;
+    return NextResponse.redirect(login);
+  }
+
   // Everything a tenant host serves lives under /t/<slug>/…, so a platform-only
   // path such as /platform can never be reached from a municipality domain.
   return rewriteTo(
@@ -68,6 +119,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     `/t/${resolution.context.tenantSlug}${normalizedPath(request)}`,
     forwarded,
   );
+}
+
+/**
+ * The client address as reported by the platform. On Vercel `x-forwarded-for` is
+ * set by the edge; the leftmost entry is the client.
+ */
+function clientAddress(request: NextRequest): string {
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  return forwardedFor?.split(',')[0]?.trim() ?? 'unknown';
 }
 
 function normalizedPath(request: NextRequest): string {

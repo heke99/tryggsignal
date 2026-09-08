@@ -6,21 +6,23 @@ and exactly what a human must do next.
 ## GREEN phases
 
 P0 Discovery, P1 Project foundation, P2 Supabase foundation, P3 Organization /
-identity, P4 RBAC / ABAC / RLS, P5 Case core, P6 Property core, P22 Completeness
-engine, P34 Brand / domain foundation, P35 Tenant resolver, P40 Domain hardening.
+identity, P4 RBAC / ABAC / RLS, P5 Case core, P6 Property core, P8 Workflow /
+deadlines, P11 Search, P22 Completeness engine, P34 Brand / domain foundation,
+P35 Tenant resolver, P40 Domain hardening.
 
 ## IN_PROGRESS
 
-P7 Documents, P8 Workflow / deadlines, P9 Rule engine, P10 Queues,
-P11 Search, P12 Integration framework, P13 Migration engine, P14 Source registry,
-P19 Geodata, P20 AI foundation, P21 Building-permit workspace, P23 PBL
-supervision, P24 OVK, P25 Archive, P26 ROI, P27 Edge connector, P29 Security
-hardening, P31 Backup, P32 Accessibility, P33 Pilot readiness, P36 White-label
-UI, P38 Tenant auth, P39 Provisioning.
+P7 Documents, P9 Rule engine, P10 Queues, P12 Integration framework,
+P13 Migration engine, P14 Source registry, P19 Geodata, P20 AI foundation,
+P21 Building-permit workspace, P23 PBL supervision, P24 OVK, P25 Archive,
+P26 ROI, P27 Edge connector, P29 Security hardening, P30 Performance,
+P31 Backup, P32 Accessibility, P33 Pilot readiness, P36 White-label UI,
+P38 Tenant auth, P39 Provisioning.
 
 Each one has its schema and, where the masterplan calls for logic, a tested
-engine. What is missing in almost every case is the same two things: an
-authentication flow, and a running worker to execute the queued work.
+engine. What is missing now is narrower than it was: a deployed environment, a
+running worker process, federated identity credentials, and the UI forms that sit
+on top of flows the database already enforces.
 
 ## RED
 
@@ -80,10 +82,17 @@ ERROR and zero WARN.
 
 ## Production readiness
 
-Not production ready. The system cannot yet authenticate a user, so no
-municipality can use it. The foundations that are hardest to retrofit —
-authority boundary, RLS, provenance, audit chain, tenant and data-plane
-isolation, deterministic rules, explainable deadlines — are in place and tested.
+Not production ready, but the reason has changed. A user can now sign in, a case
+can be created and advanced through a versioned workflow, it is indexed for
+search the moment it exists, its deadlines are computed with an explanation, and
+none of it crosses an authority boundary. What is missing is operational: no
+deployed environment (EB-01), no per-municipality data planes (EB-02), no running
+worker, no federated identity, and no municipality has authored its own rule set
+or workflow — that last one is a legal exercise, not a coding one.
+
+The foundations that are hardest to retrofit — authority boundary, RLS,
+provenance, audit chain, tenant and data-plane isolation, deterministic rules,
+explainable deadlines, host-bound sessions — are in place and tested.
 
 ## Exact next external actions, in order
 

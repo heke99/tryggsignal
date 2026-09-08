@@ -133,9 +133,9 @@ values
   ((select v from t_ids where k = 'auth_mx_miljo'), (select v from t_ids where k = 'case_MX-0003'),
    'ANSOKAN', 'Ansokan MX-0003', 'INTERNAL');
 
-insert into search.entities (authority_id, entity_type, entity_id, case_id, title, body, information_class, security_scope)
-select c.authority_id, 'CASE', c.id, c.id, c.case_number, c.title, c.information_class, 'CASE_PARTIES'
-from core.cases c where c.case_number like 'MX-%';
+-- The search index is maintained by the trigger on core.cases, so the fixtures
+-- above have already been indexed. Asserting on it here proves the trigger and
+-- the search policy agree with the case policy.
 
 create or replace function pg_temp.expect(p_label text, p_actual bigint, p_expected bigint)
 returns void language plpgsql as $$

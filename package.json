@@ -26,6 +26,7 @@
     "@tryggsignal/database": "workspace:*",
     "@tryggsignal/deadlines": "workspace:*",
     "@tryggsignal/domain": "workspace:*",
+    "@tryggsignal/identity": "workspace:*",
     "@tryggsignal/integrations": "workspace:*",
     "@tryggsignal/migration-engine": "workspace:*",
     "@tryggsignal/observability": "workspace:*",

@@ -49,6 +49,8 @@ document, document-version immutability, and the audit hash chain.
 
 ## Not yet testable
 
-OWASP-style testing of authenticated endpoints, IDOR/BOLA against a live API,
-CSRF, SSRF and upload abuse all require the authentication flow and the file
-endpoints. They are recorded here so P29 cannot be called GREEN before they run.
+IDOR/BOLA against a live HTTP API, SSRF and upload abuse still require endpoints
+that do not exist (the document upload API and the integration inbound API).
+A penetration test against a deployed environment has not been performed —
+there is no deployed environment yet (EB-01). These are recorded here so P29
+cannot be called GREEN before they run.
