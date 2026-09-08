@@ -241,7 +241,9 @@ export async function loadCaseOvk(
 export interface OvkQueueRow {
   readonly objectId: string;
   readonly propertyId: string | null;
+  readonly propertyDesignation: string | null;
   readonly buildingId: string | null;
+  readonly buildingDesignation: string | null;
   readonly objectReference: string | null;
   readonly ventilationSystemType: string | null;
   readonly obligationName: string;
@@ -301,25 +303,47 @@ export async function loadOvkQueue(context: TenantContext): Promise<OvkQueue> {
   if (objectIds.length === 0) return { available: true, rows: [] };
 
   const obligationIds = Array.from(new Set(objects.map((object) => object.obligation_id)));
-  const [findingsResult, linksResult, obligationsResult] = await Promise.all([
-    session.client
-      .schema('compliance')
-      .from('compliance_findings')
-      .select('compliance_object_id, status')
-      .in('compliance_object_id', objectIds)
-      .in('status', ['OPEN', 'ACTION_REQUIRED']),
-    session.client
-      .schema('compliance')
-      .from('ovk_case_objects')
-      .select('compliance_object_id, case_id, linked_at')
-      .in('compliance_object_id', objectIds)
-      .order('linked_at', { ascending: false }),
-    session.client
-      .schema('compliance')
-      .from('obligations')
-      .select('id, name')
-      .in('id', obligationIds),
-  ]);
+  const propertyIds = Array.from(
+    new Set(objects.map((object) => object.property_id).filter((id): id is string => id !== null)),
+  );
+  const buildingIds = Array.from(
+    new Set(objects.map((object) => object.building_id).filter((id): id is string => id !== null)),
+  );
+
+  const [findingsResult, linksResult, obligationsResult, propertiesResult, buildingsResult] =
+    await Promise.all([
+      session.client
+        .schema('compliance')
+        .from('compliance_findings')
+        .select('compliance_object_id, status')
+        .in('compliance_object_id', objectIds)
+        .in('status', ['OPEN', 'ACTION_REQUIRED']),
+      session.client
+        .schema('compliance')
+        .from('ovk_case_objects')
+        .select('compliance_object_id, case_id, linked_at')
+        .in('compliance_object_id', objectIds)
+        .order('linked_at', { ascending: false }),
+      session.client
+        .schema('compliance')
+        .from('obligations')
+        .select('id, name')
+        .in('id', obligationIds),
+      propertyIds.length === 0
+        ? Promise.resolve({ data: [] })
+        : session.client
+            .schema('property')
+            .from('properties')
+            .select('id, designation')
+            .in('id', propertyIds),
+      buildingIds.length === 0
+        ? Promise.resolve({ data: [] })
+        : session.client
+            .schema('property')
+            .from('buildings')
+            .select('id, building_designation, building_purpose')
+            .in('id', buildingIds),
+    ]);
 
   const openCount = new Map<string, number>();
   for (const row of findingsResult.data ?? []) {
@@ -341,6 +365,24 @@ export async function loadOvkQueue(context: TenantContext): Promise<OvkQueue> {
       row.name,
     ]),
   );
+  const propertyDesignation = new Map(
+    ((propertiesResult.data ?? []) as Array<{ id: string; designation: string }>).map((row) => [
+      row.id,
+      row.designation,
+    ]),
+  );
+  const buildingDesignation = new Map(
+    (
+      (buildingsResult.data ?? []) as Array<{
+        id: string;
+        building_designation: string | null;
+        building_purpose: string | null;
+      }>
+    ).map((row) => [
+      row.id,
+      row.building_designation ?? row.building_purpose ?? 'Byggnad',
+    ]),
+  );
 
   const priority = (status: string): number =>
     status === 'OVERDUE' ? 4 : status === 'DUE' ? 3 : status === 'UNKNOWN' ? 2 : 1;
@@ -354,7 +396,11 @@ export async function loadOvkQueue(context: TenantContext): Promise<OvkQueue> {
     .map((object) => ({
       objectId: object.id,
       propertyId: object.property_id,
+      propertyDesignation:
+        object.property_id === null ? null : (propertyDesignation.get(object.property_id) ?? null),
       buildingId: object.building_id,
+      buildingDesignation:
+        object.building_id === null ? null : (buildingDesignation.get(object.building_id) ?? null),
       objectReference: object.object_reference,
       ventilationSystemType: object.ventilation_system_type,
       obligationName: obligationName.get(object.obligation_id) ?? 'OVK',
