@@ -63,8 +63,7 @@ const ERROR_MESSAGES: Record<string, string> = {
     'Dokumentets klassificering kunde inte uppdateras. Kontrollera behörighet och värden.',
   completeness:
     'Kompletthetsbedömningen kunde inte genomföras. Kontrollera profil, källor och behörighet.',
-  'completeness-review':
-    'Den mänskliga kompletthetsgranskningen kunde inte sparas.',
+  'completeness-review': 'Den mänskliga kompletthetsgranskningen kunde inte sparas.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -948,8 +947,7 @@ export default async function CaseWorkspacePage({
                 <ul>
                   {completeness.current.missingItems.map((item) => (
                     <li key={item.rule_id}>
-                      <strong>{item.label}</strong>{' '}
-                      <span className="meta">({item.reason})</span>
+                      <strong>{item.label}</strong> <span className="meta">({item.reason})</span>
                     </li>
                   ))}
                 </ul>

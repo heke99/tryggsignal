@@ -814,9 +814,7 @@ export async function loadCaseCompleteness(
   const assessment = await session.client
     .schema('rules')
     .from('completeness_assessments')
-    .select(
-      'id, rule_set_version_id, result, evidence, missing_items, evaluated_at',
-    )
+    .select('id, rule_set_version_id, result, evidence, missing_items, evaluated_at')
     .eq('case_id', caseId)
     .is('superseded_at', null)
     .order('evaluated_at', { ascending: false })
@@ -850,9 +848,7 @@ export async function loadCaseCompleteness(
     kind: String(entry['kind'] ?? ''),
     value: entry['value'] === null || entry['value'] === undefined ? null : String(entry['value']),
     result:
-      entry['result'] === 'PASS' || entry['result'] === 'FAIL'
-        ? entry['result']
-        : 'HUMAN_REVIEW',
+      entry['result'] === 'PASS' || entry['result'] === 'FAIL' ? entry['result'] : 'HUMAN_REVIEW',
     matched_count: Number(entry['matched_count'] ?? 0),
     legal_reference:
       entry['legal_reference'] === null || entry['legal_reference'] === undefined

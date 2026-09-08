@@ -826,7 +826,6 @@ export async function createDocumentDownloadUrlAction(input: {
   return data.signedUrl;
 }
 
-
 /** Phase G6: evaluate completeness using a published, sourced rule-set version. */
 export async function evaluateCaseCompletenessAction(formData: FormData): Promise<void> {
   const caseId = safeCaseId(formData);
