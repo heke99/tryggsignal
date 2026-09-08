@@ -94,6 +94,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/custom_domains.sql
+      - name: Provisioning reproducibility integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/provisioning_reproducibility.sql
       - name: Worker runtime integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/worker_runtime.sql
       - name: Tenant runtime isolation matrix
