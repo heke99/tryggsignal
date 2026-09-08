@@ -50,7 +50,9 @@ export default async function OvkQueuePage() {
                   <tr key={row.objectId}>
                     <td>
                       <span className="status-badge">{row.status}</span>
-                      {row.riskScore !== null && <span className="meta"> · risk {row.riskScore}</span>}
+                      {row.riskScore !== null && (
+                        <span className="meta"> · risk {row.riskScore}</span>
+                      )}
                     </td>
                     <td>
                       {row.propertyDesignation ?? 'Fastighet saknas'}
@@ -58,15 +60,13 @@ export default async function OvkQueuePage() {
                     </td>
                     <td>
                       {row.linkedCaseId === null ? (
-                        row.objectReference ?? 'OVK-objekt'
+                        (row.objectReference ?? 'OVK-objekt')
                       ) : (
                         <Link href={`/handlaggning/arenden/${row.linkedCaseId}#ovk`}>
                           {row.objectReference ?? 'Öppna OVK-ärende'}
                         </Link>
                       )}
-                      {row.ventilationSystemType === null
-                        ? ''
-                        : ' · ' + row.ventilationSystemType}
+                      {row.ventilationSystemType === null ? '' : ' · ' + row.ventilationSystemType}
                     </td>
                     <td>{row.obligationName}</td>
                     <td>{row.nextDueAt ?? 'Okänd'}</td>

@@ -56,10 +56,7 @@ export interface CaseOvk {
   readonly objects: readonly CaseOvkObject[];
 }
 
-export async function loadCaseOvk(
-  context: TenantContext,
-  caseId: string,
-): Promise<CaseOvk> {
+export async function loadCaseOvk(context: TenantContext, caseId: string): Promise<CaseOvk> {
   const session = await tenantClient(context);
   if (!session.authenticated) return { obligations: [], objects: [] };
 
@@ -184,19 +181,21 @@ export async function loadCaseOvk(
 
   return {
     obligations,
-    objects: ((objectsResult.data ?? []) as Array<{
-      id: string;
-      property_id: string | null;
-      building_id: string | null;
-      obligation_id: string;
-      object_reference: string | null;
-      ventilation_system_type: string | null;
-      last_performed_at: string | null;
-      next_due_at: string | null;
-      status: string;
-      risk_score: number | null;
-      last_protocol_result: string | null;
-    }>).map((object) => ({
+    objects: (
+      (objectsResult.data ?? []) as Array<{
+        id: string;
+        property_id: string | null;
+        building_id: string | null;
+        obligation_id: string;
+        object_reference: string | null;
+        ventilation_system_type: string | null;
+        last_performed_at: string | null;
+        next_due_at: string | null;
+        status: string;
+        risk_score: number | null;
+        last_protocol_result: string | null;
+      }>
+    ).map((object) => ({
       id: object.id,
       propertyId: object.property_id,
       buildingId: object.building_id,
@@ -378,10 +377,7 @@ export async function loadOvkQueue(context: TenantContext): Promise<OvkQueue> {
         building_designation: string | null;
         building_purpose: string | null;
       }>
-    ).map((row) => [
-      row.id,
-      row.building_designation ?? row.building_purpose ?? 'Byggnad',
-    ]),
+    ).map((row) => [row.id, row.building_designation ?? row.building_purpose ?? 'Byggnad']),
   );
 
   const priority = (status: string): number =>

@@ -127,7 +127,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'supervision-followup-complete': 'Uppföljningen kunde inte slutföras.',
   'supervision-close': 'Tillsynen kunde inte stängas. Öppet arbete kan återstå.',
   'ovk-object': 'OVK-objektet kunde inte registreras eller länkas.',
-  'ovk-protocol': 'OVK-protokollet kunde inte registreras. Kontrollera att dokumentversionen är CLEAN.',
+  'ovk-protocol':
+    'OVK-protokollet kunde inte registreras. Kontrollera att dokumentversionen är CLEAN.',
   'ovk-finding': 'OVK-fyndet kunde inte registreras.',
   'ovk-resolve': 'OVK-fyndet kunde inte markeras som löst.',
 };
@@ -2354,8 +2355,8 @@ export default async function CaseWorkspacePage({
               <summary>Registrera eller länka OVK-objekt</summary>
               {workspace.properties.length === 0 || ovk.obligations.length === 0 ? (
                 <p className="meta">
-                  Ärendet behöver minst en kopplad fastighet och en aktiv versionerad
-                  OVK-skyldighet innan objekt kan registreras.
+                  Ärendet behöver minst en kopplad fastighet och en aktiv versionerad OVK-skyldighet
+                  innan objekt kan registreras.
                 </p>
               ) : (
                 <form action={linkOvkObjectAction} className="form-grid compact-form">
@@ -2381,7 +2382,9 @@ export default async function CaseWorkspacePage({
                         property.buildings.map((building) => (
                           <option key={building.id} value={building.id}>
                             {property.designation} ·{' '}
-                            {building.building_designation ?? building.building_purpose ?? 'Byggnad'}
+                            {building.building_designation ??
+                              building.building_purpose ??
+                              'Byggnad'}
                           </option>
                         )),
                       )}
@@ -2466,17 +2469,15 @@ export default async function CaseWorkspacePage({
                             : ' · ' + object.ventilationSystemType}
                         </p>
                         <p className="meta">
-                          {obligation?.name ?? 'OVK'} · nästa kontroll{' '}
-                          {object.nextDueAt ?? 'okänd'} · risk {object.riskScore ?? '—'}
+                          {obligation?.name ?? 'OVK'} · nästa kontroll {object.nextDueAt ?? 'okänd'}{' '}
+                          · risk {object.riskScore ?? '—'}
                           {object.lastProtocolResult === null
                             ? ''
                             : ' · senaste protokoll ' + object.lastProtocolResult}
                         </p>
                         {obligation?.legalReference !== null &&
                           obligation?.legalReference !== undefined && (
-                            <p className="meta">
-                              Rättslig källa: {obligation.legalReference}
-                            </p>
+                            <p className="meta">Rättslig källa: {obligation.legalReference}</p>
                           )}
                       </div>
                     </div>
@@ -2488,9 +2489,7 @@ export default async function CaseWorkspacePage({
                           <li key={protocol.id}>
                             {protocol.performedAt} ·{' '}
                             <span className="status-badge">{protocol.result}</span>
-                            {protocol.inspectorName === null
-                              ? ''
-                              : ' · ' + protocol.inspectorName}
+                            {protocol.inspectorName === null ? '' : ' · ' + protocol.inspectorName}
                           </li>
                         ))}
                       </ol>
@@ -2604,8 +2603,7 @@ export default async function CaseWorkspacePage({
                           {finding.resolutionNote !== null && (
                             <p className="meta">Resolution: {finding.resolutionNote}</p>
                           )}
-                          {(finding.status === 'OPEN' ||
-                            finding.status === 'ACTION_REQUIRED') && (
+                          {(finding.status === 'OPEN' || finding.status === 'ACTION_REQUIRED') && (
                             <form action={resolveOvkFindingAction} className="inline-action">
                               <input type="hidden" name="caseId" value={header.id} />
                               <input type="hidden" name="findingId" value={finding.id} />
