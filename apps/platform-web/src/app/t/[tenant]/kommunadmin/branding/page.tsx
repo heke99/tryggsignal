@@ -292,7 +292,11 @@ export default async function BrandingAdmin({ searchParams }: PageProps) {
                 <input type="hidden" name="brandingId" value={draft.id ?? ''} />
                 <input type="hidden" name="kind" value={kind} />
                 <label>
-                  {kind === 'LOGO' ? 'Logotyp' : kind === 'LOGO_DARK' ? 'Logotyp mörkt läge' : 'Favicon'}
+                  {kind === 'LOGO'
+                    ? 'Logotyp'
+                    : kind === 'LOGO_DARK'
+                      ? 'Logotyp mörkt läge'
+                      : 'Favicon'}
                   <br />
                   <input name="asset" type="file" accept="image/png,image/webp" required />
                 </label>{' '}
