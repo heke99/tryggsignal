@@ -27,6 +27,21 @@ import {
   updateDocumentMetadataAction,
   updatePartyContactAction,
 } from '@/lib/data/actions';
+import {
+  addSupervisionFindingEvidenceAction,
+  assessSupervisionRiskAction,
+  closeSupervisionAction,
+  completeSupervisionActionAction,
+  completeSupervisionFollowupAction,
+  completeSupervisionInspectionAction,
+  createSupervisionActionAction,
+  createSupervisionFollowupAction,
+  openSupervisionAction,
+  recordSupervisionFindingAction,
+  resolveSupervisionFindingAction,
+  scheduleSupervisionInspectionAction,
+} from '@/lib/data/supervision-actions';
+import { loadCaseSupervision } from '@/lib/data/supervision';
 import { DocumentDownloadButton } from './DocumentDownloadButton';
 import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
@@ -90,6 +105,18 @@ const ERROR_MESSAGES: Record<string, string> = {
   'decision-decide': 'Det slutliga beslutet kunde inte registreras.',
   'decision-sign': 'Signeringsbeviset kunde inte registreras.',
   'decision-issue': 'Beslutet kunde inte köas för expediering.',
+  'supervision-open': 'PBL-tillsynen kunde inte öppnas.',
+  'supervision-risk': 'Riskbedömningen kunde inte sparas.',
+  'supervision-inspection': 'Tillsynsinspektionen kunde inte schemaläggas.',
+  'supervision-inspection-complete': 'Inspektionen kunde inte slutföras. Behörig inspektör krävs.',
+  'supervision-finding': 'Iakttagelsen kunde inte registreras.',
+  'supervision-evidence': 'Evidensen kunde inte kopplas till iakttagelsen.',
+  'supervision-resolve': 'Iakttagelsen kunde inte markeras som löst.',
+  'supervision-action': 'Tillsynsåtgärden kunde inte skapas.',
+  'supervision-action-complete': 'Tillsynsåtgärden kunde inte slutföras.',
+  'supervision-followup': 'Uppföljningen kunde inte skapas.',
+  'supervision-followup-complete': 'Uppföljningen kunde inte slutföras.',
+  'supervision-close': 'Tillsynen kunde inte stängas. Öppet arbete kan återstå.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -120,6 +147,18 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'decision-decided': 'Det slutliga mänskliga beslutet har registrerats.',
   'decision-signed': 'Signeringsbeviset har registrerats.',
   'decision-queued': 'Expedieringen är köad och blir inte SENT förrän provider bekräftar.',
+  'supervision-opened': 'PBL-tillsynen har öppnats.',
+  'supervision-risk': 'Riskbedömningen har sparats.',
+  'supervision-inspection': 'Tillsynsinspektionen har schemalagts.',
+  'supervision-inspection-complete': 'Inspektionen har slutförts.',
+  'supervision-finding': 'Iakttagelsen har registrerats.',
+  'supervision-evidence': 'Evidensen har kopplats till iakttagelsen.',
+  'supervision-resolve': 'Iakttagelsen är markerad som löst.',
+  'supervision-action': 'Tillsynsåtgärden har skapats.',
+  'supervision-action-complete': 'Tillsynsåtgärden har slutförts.',
+  'supervision-followup': 'Uppföljningen har skapats.',
+  'supervision-followup-complete': 'Uppföljningen har slutförts.',
+  'supervision-closed': 'PBL-tillsynen har stängts.',
 };
 
 export default async function CaseWorkspacePage({
@@ -151,10 +190,11 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const [completeness, referrals, decisions] = await Promise.all([
+  const [completeness, referrals, decisions, supervision] = await Promise.all([
     loadCaseCompleteness(tenant, caseId, header.authority_id),
     loadCaseReferrals(tenant, caseId),
     loadCaseDecisions(tenant, caseId),
+    loadCaseSupervision(tenant, caseId),
   ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
@@ -162,6 +202,17 @@ export default async function CaseWorkspacePage({
     query.error === undefined ? null : (ERROR_MESSAGES[query.error] ?? ERROR_MESSAGES.validation);
   const successMessage =
     query.ok === undefined ? null : (SUCCESS_MESSAGES[query.ok] ?? 'Åtgärden är genomförd.');
+  const cleanDocumentVersions = workspace.documents.flatMap((document) =>
+    document.versions
+      .filter((version) => version.ingestion_status === 'CLEAN')
+      .map((version) => ({
+        documentId: document.id,
+        documentTitle: document.title,
+        versionId: version.id,
+        version: version.version,
+      })),
+  );
+  const finalDecisions = decisions.filter((decision) => decision.status === 'DECIDED');
 
   return (
     <main id="innehall">
@@ -1659,6 +1710,608 @@ export default async function CaseWorkspacePage({
           })}
           {decisions.length === 0 && <p className="meta">Inga beslut registrerade.</p>}
         </div>
+      </section>
+
+      <section id="tillsyn" aria-labelledby="h-supervision" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-supervision">PBL-tillsyn</h2>
+            <p className="meta">
+              Risk är operativ prioritering. Juridiska krav, förelägganden och förbud kräver spårbar
+              regel-/beslutsgrund och fattas aldrig av AI.
+            </p>
+          </div>
+          <Link className="button-secondary" href="/handlaggning/tillsyn">
+            Öppna riskkön
+          </Link>
+        </div>
+
+        {header.process_type !== 'PBL_TILLSYN' ? (
+          <p className="meta">Det här ärendet är inte klassificerat som PBL_TILLSYN.</p>
+        ) : supervision === null ? (
+          <form action={openSupervisionAction} className="form-grid compact-form">
+            <input type="hidden" name="caseId" value={header.id} />
+            <div className="form-field">
+              <label htmlFor="supervisionSource">Startorsak</label>
+              <select id="supervisionSource" name="sourceType" defaultValue="REPORT">
+                <option value="REPORT">Anmälan/uppgift</option>
+                <option value="OWN_INITIATIVE">Eget initiativ</option>
+                <option value="INSPECTION">Inspektionsfynd</option>
+                <option value="OTHER">Annan</option>
+              </select>
+            </div>
+            <div className="form-field form-field-wide">
+              <label htmlFor="supervisionAllegation">Uppgift / frågeställning</label>
+              <textarea id="supervisionAllegation" name="allegation" rows={4} maxLength={10000} />
+            </div>
+            <div className="form-actions form-field-wide">
+              <button type="submit">Öppna PBL-tillsyn</button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="notice">
+              <strong>
+                {supervision.status} · risk {supervision.riskScore.toFixed(0)}{' '}
+                {supervision.riskLevel}
+              </strong>
+              <p className="meta">
+                Källa {supervision.sourceType} · öppnad{' '}
+                {supervision.openedAt.slice(0, 16).replace('T', ' ')}
+              </p>
+              {supervision.allegation !== null && <p>{supervision.allegation}</p>}
+            </div>
+
+            {supervision.status !== 'CLOSED' && (
+              <details className="create-panel">
+                <summary>Ny riskbedömning</summary>
+                <form action={assessSupervisionRiskAction} className="form-grid compact-form">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="supervisionId" value={supervision.id} />
+                  <div className="form-field">
+                    <label htmlFor="supervisionRiskScore">Riskscore 0–100</label>
+                    <input
+                      id="supervisionRiskScore"
+                      name="score"
+                      type="number"
+                      min={0}
+                      max={100}
+                      step="0.01"
+                      defaultValue={String(supervision.riskScore)}
+                      required
+                    />
+                  </div>
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="supervisionRiskReasons">Skäl — ett per rad</label>
+                    <textarea
+                      id="supervisionRiskReasons"
+                      name="reasons"
+                      rows={4}
+                      maxLength={10000}
+                    />
+                  </div>
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Spara riskbedömning</button>
+                  </div>
+                </form>
+              </details>
+            )}
+
+            {supervision.riskHistory.length > 0 && (
+              <details>
+                <summary>Riskhistorik ({supervision.riskHistory.length})</summary>
+                <ol>
+                  {supervision.riskHistory.map((risk) => (
+                    <li key={risk.id}>
+                      {risk.assessedAt.slice(0, 16).replace('T', ' ')} — {risk.score}{' '}
+                      <span className="status-badge">{risk.level}</span> ·{' '}
+                      {JSON.stringify(risk.reasons)}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
+
+            {supervision.status !== 'CLOSED' && (
+              <details className="create-panel">
+                <summary>Schemalägg tillsynsinspektion</summary>
+                <form
+                  action={scheduleSupervisionInspectionAction}
+                  className="form-grid compact-form"
+                >
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="supervisionId" value={supervision.id} />
+                  <div className="form-field">
+                    <label htmlFor="supervisionInspectionAt">Tid</label>
+                    <input
+                      id="supervisionInspectionAt"
+                      name="scheduledAt"
+                      type="datetime-local"
+                      required
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="supervisionProperty">Fastighet</label>
+                    <select id="supervisionProperty" name="propertyId" defaultValue="">
+                      <option value="">Ingen specifik</option>
+                      {workspace.properties.map((property) => (
+                        <option key={property.property_id} value={property.property_id}>
+                          {property.designation}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="supervisionBuilding">Byggnad</label>
+                    <select id="supervisionBuilding" name="buildingId" defaultValue="">
+                      <option value="">Ingen specifik</option>
+                      {workspace.properties.flatMap((property) =>
+                        property.buildings.map((building) => (
+                          <option key={building.id} value={building.id}>
+                            {property.designation} ·{' '}
+                            {building.building_designation ??
+                              building.building_purpose ??
+                              'Byggnad'}
+                          </option>
+                        )),
+                      )}
+                    </select>
+                  </div>
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="supervisionInspectionNotes">Anteckning</label>
+                    <textarea
+                      id="supervisionInspectionNotes"
+                      name="notes"
+                      rows={3}
+                      maxLength={10000}
+                    />
+                  </div>
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Schemalägg inspektion</button>
+                  </div>
+                </form>
+              </details>
+            )}
+
+            <h3>Inspektioner ({supervision.inspections.length})</h3>
+            <div className="entity-list">
+              {supervision.inspections.map((inspection) => (
+                <article className="entity-item" key={inspection.id}>
+                  <strong>
+                    {inspection.status}
+                    {inspection.result === null ? '' : ' · ' + inspection.result}
+                  </strong>
+                  <p className="meta">
+                    {inspection.scheduledAt === null
+                      ? 'Ingen planerad tid'
+                      : 'Planerad ' + inspection.scheduledAt.slice(0, 16).replace('T', ' ')}
+                    {inspection.performedAt === null
+                      ? ''
+                      : ' · utförd ' + inspection.performedAt.slice(0, 16).replace('T', ' ')}
+                  </p>
+                  {inspection.notes !== null && <p>{inspection.notes}</p>}
+
+                  {(inspection.status === 'PLANNED' || inspection.status === 'IN_PROGRESS') && (
+                    <details>
+                      <summary>Slutför inspektion</summary>
+                      <form
+                        action={completeSupervisionInspectionAction}
+                        className="form-grid compact-form"
+                      >
+                        <input type="hidden" name="caseId" value={header.id} />
+                        <input type="hidden" name="inspectionId" value={inspection.id} />
+                        <div className="form-field">
+                          <label htmlFor={'inspection-result-' + inspection.id}>Resultat</label>
+                          <select
+                            id={'inspection-result-' + inspection.id}
+                            name="result"
+                            defaultValue="APPROVED_WITH_REMARKS"
+                          >
+                            <option value="APPROVED">Godkänd</option>
+                            <option value="APPROVED_WITH_REMARKS">Godkänd med anmärkning</option>
+                            <option value="REJECTED">Avvikelse</option>
+                            <option value="NOT_APPLICABLE">Ej tillämplig</option>
+                          </select>
+                        </div>
+                        <div className="form-field form-field-wide">
+                          <label htmlFor={'inspection-notes-' + inspection.id}>Anteckning</label>
+                          <textarea
+                            id={'inspection-notes-' + inspection.id}
+                            name="notes"
+                            rows={3}
+                            maxLength={10000}
+                          />
+                        </div>
+                        <div className="form-actions form-field-wide">
+                          <button type="submit">Slutför som behörig inspektör</button>
+                        </div>
+                      </form>
+                    </details>
+                  )}
+                </article>
+              ))}
+              {supervision.inspections.length === 0 && (
+                <p className="meta">Inga tillsynsinspektioner.</p>
+              )}
+            </div>
+
+            {supervision.status !== 'CLOSED' && (
+              <details className="create-panel">
+                <summary>Registrera iakttagelse / finding</summary>
+                <form action={recordSupervisionFindingAction} className="form-grid compact-form">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="supervisionId" value={supervision.id} />
+                  <div className="form-field">
+                    <label htmlFor="findingInspection">Inspektion</label>
+                    <select id="findingInspection" name="inspectionId" defaultValue="">
+                      <option value="">Inte kopplad till inspektion</option>
+                      {supervision.inspections.map((inspection) => (
+                        <option key={inspection.id} value={inspection.id}>
+                          {inspection.scheduledAt?.slice(0, 10) ?? inspection.id} ·{' '}
+                          {inspection.status}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="findingSeverity">Allvar</label>
+                    <select id="findingSeverity" name="severity" defaultValue="REMARK">
+                      <option value="INFO">Info</option>
+                      <option value="REMARK">Anmärkning</option>
+                      <option value="DEVIATION">Avvikelse</option>
+                      <option value="SERIOUS">Allvarlig</option>
+                    </select>
+                  </div>
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="findingTitle">Rubrik</label>
+                    <input
+                      id="findingTitle"
+                      name="title"
+                      type="text"
+                      minLength={2}
+                      maxLength={300}
+                      required
+                    />
+                  </div>
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="findingDescription">Beskrivning</label>
+                    <textarea
+                      id="findingDescription"
+                      name="description"
+                      rows={4}
+                      maxLength={10000}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="findingDueAt">Åtgärd senast</label>
+                    <input id="findingDueAt" name="dueAt" type="datetime-local" />
+                  </div>
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Registrera finding</button>
+                  </div>
+                </form>
+              </details>
+            )}
+
+            <h3>Findings ({supervision.findings.length})</h3>
+            <div className="entity-list">
+              {supervision.findings.map((finding) => (
+                <article className="entity-item" key={finding.id}>
+                  <div className="entity-heading">
+                    <div>
+                      <strong>{finding.title}</strong>{' '}
+                      <span className="status-badge">{finding.severity}</span>{' '}
+                      <span className="status-badge">{finding.status}</span>
+                      {finding.dueAt !== null && (
+                        <p className="meta">
+                          Senast {finding.dueAt.slice(0, 16).replace('T', ' ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {finding.description !== null && <p>{finding.description}</p>}
+                  {finding.evidence.length > 0 && (
+                    <ul>
+                      {finding.evidence.map((evidence) => (
+                        <li key={evidence.id}>
+                          Evidens {evidence.documentVersionId ?? evidence.id}
+                          {evidence.note === null ? '' : ' · ' + evidence.note}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {finding.status !== 'RESOLVED' && finding.status !== 'CLOSED' && (
+                    <>
+                      {cleanDocumentVersions.length > 0 && (
+                        <details>
+                          <summary>Koppla CLEAN dokumentevidens</summary>
+                          <form
+                            action={addSupervisionFindingEvidenceAction}
+                            className="form-grid compact-form"
+                          >
+                            <input type="hidden" name="caseId" value={header.id} />
+                            <input type="hidden" name="findingId" value={finding.id} />
+                            <div className="form-field">
+                              <label htmlFor={'evidence-document-' + finding.id}>Dokument</label>
+                              <select
+                                id={'evidence-document-' + finding.id}
+                                name="documentId"
+                                defaultValue=""
+                                required
+                              >
+                                <option value="" disabled>
+                                  Välj dokument
+                                </option>
+                                {workspace.documents
+                                  .filter((document) =>
+                                    document.versions.some(
+                                      (version) => version.ingestion_status === 'CLEAN',
+                                    ),
+                                  )
+                                  .map((document) => (
+                                    <option key={document.id} value={document.id}>
+                                      {document.title}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div className="form-field">
+                              <label htmlFor={'evidence-version-' + finding.id}>Version</label>
+                              <select
+                                id={'evidence-version-' + finding.id}
+                                name="documentVersionId"
+                                defaultValue=""
+                                required
+                              >
+                                <option value="" disabled>
+                                  Välj CLEAN version
+                                </option>
+                                {cleanDocumentVersions.map((version) => (
+                                  <option key={version.versionId} value={version.versionId}>
+                                    {version.documentTitle} · v{version.version}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="form-field form-field-wide">
+                              <label htmlFor={'evidence-note-' + finding.id}>Notering</label>
+                              <input
+                                id={'evidence-note-' + finding.id}
+                                name="note"
+                                type="text"
+                                maxLength={4000}
+                              />
+                            </div>
+                            <div className="form-actions form-field-wide">
+                              <button type="submit" className="button-secondary">
+                                Koppla evidens
+                              </button>
+                            </div>
+                          </form>
+                        </details>
+                      )}
+
+                      <form action={resolveSupervisionFindingAction} className="inline-action">
+                        <input type="hidden" name="caseId" value={header.id} />
+                        <input type="hidden" name="findingId" value={finding.id} />
+                        <label htmlFor={'resolve-finding-' + finding.id}>Resolution</label>
+                        <input
+                          id={'resolve-finding-' + finding.id}
+                          name="note"
+                          type="text"
+                          minLength={2}
+                          maxLength={4000}
+                          required
+                        />
+                        <button type="submit" className="button-secondary">
+                          Markera löst
+                        </button>
+                      </form>
+                    </>
+                  )}
+                </article>
+              ))}
+              {supervision.findings.length === 0 && <p className="meta">Inga findings.</p>}
+            </div>
+
+            {supervision.status !== 'CLOSED' && (
+              <details className="create-panel">
+                <summary>Skapa tillsynsåtgärd</summary>
+                <form action={createSupervisionActionAction} className="form-grid compact-form">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="supervisionId" value={supervision.id} />
+                  <div className="form-field">
+                    <label htmlFor="supervisionActionType">Typ</label>
+                    <select
+                      id="supervisionActionType"
+                      name="actionType"
+                      defaultValue="REQUEST_INFO"
+                    >
+                      <option value="REQUEST_INFO">Begär uppgifter</option>
+                      <option value="INSPECTION">Inspektion</option>
+                      <option value="COMMUNICATION">Kommunicering</option>
+                      <option value="ORDER">Föreläggande</option>
+                      <option value="PROHIBITION">Förbud</option>
+                      <option value="SANCTION_REVIEW">Sanktionsprövning</option>
+                      <option value="OTHER">Annan</option>
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="supervisionActionDue">Senast</label>
+                    <input id="supervisionActionDue" name="dueAt" type="datetime-local" />
+                  </div>
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="supervisionActionDescription">Beskrivning</label>
+                    <textarea
+                      id="supervisionActionDescription"
+                      name="description"
+                      rows={4}
+                      minLength={2}
+                      maxLength={10000}
+                      required
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="supervisionLegalReference">Rättslig referens</label>
+                    <input
+                      id="supervisionLegalReference"
+                      name="legalReference"
+                      type="text"
+                      maxLength={2000}
+                    />
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="supervisionDecision">Slutligt beslut</label>
+                    <select id="supervisionDecision" name="decisionId" defaultValue="">
+                      <option value="">Inget</option>
+                      {finalDecisions.map((decision) => (
+                        <option key={decision.id} value={decision.id}>
+                          {decision.decisionNumber ?? decision.decisionType}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Skapa åtgärd</button>
+                  </div>
+                </form>
+              </details>
+            )}
+
+            <h3>Åtgärder ({supervision.actions.length})</h3>
+            <div className="entity-list">
+              {supervision.actions.map((action) => (
+                <article className="entity-item" key={action.id}>
+                  <strong>
+                    {action.actionType} <span className="status-badge">{action.status}</span>
+                  </strong>
+                  <p>{action.description}</p>
+                  {action.legalReference !== null && (
+                    <p className="meta">Rättslig referens: {action.legalReference}</p>
+                  )}
+                  {action.dueAt !== null && (
+                    <p className="meta">Senast {action.dueAt.slice(0, 16).replace('T', ' ')}</p>
+                  )}
+                  {action.outcome !== null && <p className="meta">Utfall: {action.outcome}</p>}
+
+                  {(action.status === 'PLANNED' || action.status === 'ACTIVE') && (
+                    <form action={completeSupervisionActionAction} className="inline-action">
+                      <input type="hidden" name="caseId" value={header.id} />
+                      <input type="hidden" name="actionId" value={action.id} />
+                      <label htmlFor={'action-outcome-' + action.id}>Utfall</label>
+                      <input
+                        id={'action-outcome-' + action.id}
+                        name="outcome"
+                        type="text"
+                        minLength={2}
+                        maxLength={4000}
+                        required
+                      />
+                      <button type="submit" className="button-secondary">
+                        Slutför åtgärd
+                      </button>
+                    </form>
+                  )}
+                </article>
+              ))}
+              {supervision.actions.length === 0 && <p className="meta">Inga åtgärder.</p>}
+            </div>
+
+            {supervision.status !== 'CLOSED' && (
+              <details className="create-panel">
+                <summary>Skapa uppföljning</summary>
+                <form action={createSupervisionFollowupAction} className="form-grid compact-form">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="supervisionId" value={supervision.id} />
+                  <div className="form-field">
+                    <label htmlFor="followupAction">Kopplad åtgärd</label>
+                    <select id="followupAction" name="actionId" defaultValue="">
+                      <option value="">Ingen</option>
+                      {supervision.actions.map((action) => (
+                        <option key={action.id} value={action.id}>
+                          {action.actionType} · {action.description.slice(0, 80)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-field">
+                    <label htmlFor="followupDueAt">Följ upp senast</label>
+                    <input id="followupDueAt" name="dueAt" type="datetime-local" required />
+                  </div>
+                  <div className="form-field form-field-wide">
+                    <label htmlFor="followupNote">Notering</label>
+                    <textarea id="followupNote" name="note" rows={3} maxLength={4000} />
+                  </div>
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Skapa uppföljning</button>
+                  </div>
+                </form>
+              </details>
+            )}
+
+            <h3>Uppföljningar ({supervision.followups.length})</h3>
+            <div className="entity-list">
+              {supervision.followups.map((followup) => (
+                <article className="entity-item" key={followup.id}>
+                  <strong>
+                    {followup.dueAt.slice(0, 16).replace('T', ' ')}{' '}
+                    <span className="status-badge">{followup.status}</span>
+                  </strong>
+                  {followup.note !== null && <p>{followup.note}</p>}
+                  {followup.outcome !== null && <p className="meta">Utfall: {followup.outcome}</p>}
+                  {(followup.status === 'OPEN' || followup.status === 'OVERDUE') && (
+                    <form action={completeSupervisionFollowupAction} className="inline-action">
+                      <input type="hidden" name="caseId" value={header.id} />
+                      <input type="hidden" name="followupId" value={followup.id} />
+                      <label htmlFor={'followup-outcome-' + followup.id}>Utfall</label>
+                      <input
+                        id={'followup-outcome-' + followup.id}
+                        name="outcome"
+                        type="text"
+                        minLength={2}
+                        maxLength={4000}
+                        required
+                      />
+                      <button type="submit" className="button-secondary">
+                        Slutför uppföljning
+                      </button>
+                    </form>
+                  )}
+                </article>
+              ))}
+              {supervision.followups.length === 0 && <p className="meta">Inga uppföljningar.</p>}
+            </div>
+
+            {supervision.status !== 'CLOSED' ? (
+              <details className="create-panel">
+                <summary>Stäng PBL-tillsyn</summary>
+                <p className="meta">
+                  Databasen stoppar stängning om öppna findings, åtgärder eller uppföljningar finns.
+                </p>
+                <form action={closeSupervisionAction} className="inline-action">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="supervisionId" value={supervision.id} />
+                  <label htmlFor="supervisionCloseReason">Motivering</label>
+                  <input
+                    id="supervisionCloseReason"
+                    name="reason"
+                    type="text"
+                    minLength={3}
+                    maxLength={4000}
+                    required
+                  />
+                  <button type="submit">Stäng tillsyn</button>
+                </form>
+              </details>
+            ) : (
+              <div className="notice">
+                <strong>Tillsynen är stängd.</strong>
+                {supervision.closeReason !== null && <p>{supervision.closeReason}</p>}
+              </div>
+            )}
+          </>
+        )}
       </section>
 
       <section id="process" aria-labelledby="h-process" className="card">

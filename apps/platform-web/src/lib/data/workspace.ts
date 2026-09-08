@@ -10,6 +10,7 @@ import { tenantClient, TenantDataPlaneUnavailableError } from './client';
 export interface ControlTowerRow {
   readonly id: string;
   readonly case_number: string;
+  readonly process_type: string;
   readonly title: string;
   readonly status: string;
   readonly phase: string;
@@ -112,6 +113,7 @@ export interface CaseHeader {
   readonly authority_id: string;
   readonly department_id: string | null;
   readonly case_number: string;
+  readonly process_type: string;
   readonly title: string;
   readonly status: string;
   readonly phase: string;
@@ -342,7 +344,7 @@ export async function loadCaseWorkspace(
     .schema('core')
     .from('cases')
     .select(
-      'id, authority_id, department_id, case_number, title, status, phase, information_class, statutory_due_at, effective_due_at, system_of_record, assigned_user_id, assigned_team_id, primary_property_id',
+      'id, authority_id, department_id, case_number, process_type, title, status, phase, information_class, statutory_due_at, effective_due_at, system_of_record, assigned_user_id, assigned_team_id, primary_property_id',
     )
     .eq('id', caseId)
     .maybeSingle<CaseHeader>();
