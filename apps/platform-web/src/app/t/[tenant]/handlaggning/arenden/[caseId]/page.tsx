@@ -27,6 +27,21 @@ import {
   updateDocumentMetadataAction,
   updatePartyContactAction,
 } from '@/lib/data/actions';
+import {
+  addSupervisionFindingEvidenceAction,
+  assessSupervisionRiskAction,
+  closeSupervisionAction,
+  completeSupervisionActionAction,
+  completeSupervisionFollowupAction,
+  completeSupervisionInspectionAction,
+  createSupervisionActionAction,
+  createSupervisionFollowupAction,
+  openSupervisionAction,
+  recordSupervisionFindingAction,
+  resolveSupervisionFindingAction,
+  scheduleSupervisionInspectionAction,
+} from '@/lib/data/supervision-actions';
+import { loadCaseSupervision } from '@/lib/data/supervision';
 import { DocumentDownloadButton } from './DocumentDownloadButton';
 import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
@@ -90,6 +105,18 @@ const ERROR_MESSAGES: Record<string, string> = {
   'decision-decide': 'Det slutliga beslutet kunde inte registreras.',
   'decision-sign': 'Signeringsbeviset kunde inte registreras.',
   'decision-issue': 'Beslutet kunde inte köas för expediering.',
+  'supervision-open': 'PBL-tillsynen kunde inte öppnas.',
+  'supervision-risk': 'Riskbedömningen kunde inte sparas.',
+  'supervision-inspection': 'Tillsynsinspektionen kunde inte schemaläggas.',
+  'supervision-inspection-complete': 'Inspektionen kunde inte slutföras. Behörig inspektör krävs.',
+  'supervision-finding': 'Iakttagelsen kunde inte registreras.',
+  'supervision-evidence': 'Evidensen kunde inte kopplas till iakttagelsen.',
+  'supervision-resolve': 'Iakttagelsen kunde inte markeras som löst.',
+  'supervision-action': 'Tillsynsåtgärden kunde inte skapas.',
+  'supervision-action-complete': 'Tillsynsåtgärden kunde inte slutföras.',
+  'supervision-followup': 'Uppföljningen kunde inte skapas.',
+  'supervision-followup-complete': 'Uppföljningen kunde inte slutföras.',
+  'supervision-close': 'Tillsynen kunde inte stängas. Öppet arbete kan återstå.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -120,6 +147,18 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'decision-decided': 'Det slutliga mänskliga beslutet har registrerats.',
   'decision-signed': 'Signeringsbeviset har registrerats.',
   'decision-queued': 'Expedieringen är köad och blir inte SENT förrän provider bekräftar.',
+  'supervision-opened': 'PBL-tillsynen har öppnats.',
+  'supervision-risk': 'Riskbedömningen har sparats.',
+  'supervision-inspection': 'Tillsynsinspektionen har schemalagts.',
+  'supervision-inspection-complete': 'Inspektionen har slutförts.',
+  'supervision-finding': 'Iakttagelsen har registrerats.',
+  'supervision-evidence': 'Evidensen har kopplats till iakttagelsen.',
+  'supervision-resolve': 'Iakttagelsen är markerad som löst.',
+  'supervision-action': 'Tillsynsåtgärden har skapats.',
+  'supervision-action-complete': 'Tillsynsåtgärden har slutförts.',
+  'supervision-followup': 'Uppföljningen har skapats.',
+  'supervision-followup-complete': 'Uppföljningen har slutförts.',
+  'supervision-closed': 'PBL-tillsynen har stängts.',
 };
 
 export default async function CaseWorkspacePage({
@@ -151,10 +190,11 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const [completeness, referrals, decisions] = await Promise.all([
+  const [completeness, referrals, decisions, supervision] = await Promise.all([
     loadCaseCompleteness(tenant, caseId, header.authority_id),
     loadCaseReferrals(tenant, caseId),
     loadCaseDecisions(tenant, caseId),
+    loadCaseSupervision(tenant, caseId),
   ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
