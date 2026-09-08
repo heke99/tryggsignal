@@ -14,8 +14,24 @@ export interface SupabaseProjectResult {
   readonly ref: string;
   readonly name: string;
   readonly organizationId?: string | undefined;
+  readonly organizationSlug?: string | undefined;
   readonly region?: string | undefined;
   readonly status?: string | undefined;
+}
+
+interface SupabaseProjectApiRow {
+  readonly id?: string | undefined;
+  readonly ref?: string | undefined;
+  readonly name: string;
+  readonly organization_id?: string | undefined;
+  readonly organization_slug?: string | undefined;
+  readonly region?: string | undefined;
+  readonly status?: string | undefined;
+}
+
+export interface EnsuredSupabaseProject {
+  readonly project: SupabaseProjectResult;
+  readonly created: boolean;
 }
 
 export interface SupabaseApiKey {
@@ -58,7 +74,7 @@ export class SupabaseManagementProvider {
       throw new Error('Each tenant database requires a unique high-entropy password.');
     }
 
-    return this.request<SupabaseProjectResult>('/v1/projects', {
+    const row = await this.request<SupabaseProjectApiRow>('/v1/projects', {
       method: 'POST',
       body: JSON.stringify({
         name: request.name,
@@ -67,6 +83,40 @@ export class SupabaseManagementProvider {
         region_selection: { type: 'smartGroup', code: request.region },
       }),
     });
+    return this.normalizeProject(row);
+  }
+
+  async listProjects(): Promise<readonly SupabaseProjectResult[]> {
+    const rows = await this.request<unknown>('/v1/projects');
+    if (!Array.isArray(rows)) return [];
+    return (rows as SupabaseProjectApiRow[]).map((row) => this.normalizeProject(row));
+  }
+
+  /**
+   * Rerun-safe project creation. A worker retry first discovers the deterministic
+   * project name in the intended organization instead of blindly creating a
+   * second paid data plane.
+   */
+  async ensureProject(request: SupabaseProjectRequest): Promise<EnsuredSupabaseProject> {
+    const matches = (await this.listProjects()).filter(
+      (project) =>
+        project.name === request.name &&
+        (project.organizationSlug === request.organizationSlug ||
+          project.organizationId === request.organizationSlug),
+    );
+
+    if (matches.length > 1) {
+      throw new SupabaseManagementError(
+        'ensure-project',
+        409,
+        'Multiple Supabase projects match the deterministic tenant project identity.',
+      );
+    }
+    if (matches.length === 1) {
+      return { project: matches[0]!, created: false };
+    }
+
+    return { project: await this.createProject(request), created: true };
   }
 
   async projectHealth(projectRef: string): Promise<readonly SupabaseServiceHealth[]> {
@@ -94,6 +144,36 @@ export class SupabaseManagementProvider {
     return [];
   }
 
+  async applyMigration(projectRef: string, name: string, query: string): Promise<void> {
+    if (name.trim().length === 0 || query.trim().length === 0) {
+      throw new Error('Migration name and SQL are required.');
+    }
+    await this.request<unknown>(
+      `/v1/projects/${encodeURIComponent(projectRef)}/database/migrations`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name, query }),
+      },
+    );
+  }
+
+  async databaseQuery(projectRef: string, query: string): Promise<unknown> {
+    if (query.trim().length === 0) throw new Error('Database query is required.');
+    return this.request<unknown>(
+      `/v1/projects/${encodeURIComponent(projectRef)}/database/query`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ query }),
+      },
+    );
+  }
+
+  async securityAdvisor(projectRef: string): Promise<unknown> {
+    return this.request<unknown>(
+      `/v1/projects/${encodeURIComponent(projectRef)}/advisors/security`,
+    );
+  }
+
   async publishableKey(projectRef: string): Promise<string> {
     const keys = await this.apiKeys(projectRef);
     const key = keys.find(
@@ -110,6 +190,21 @@ export class SupabaseManagementProvider {
       );
     }
     return key.api_key;
+  }
+
+  private normalizeProject(row: SupabaseProjectApiRow): SupabaseProjectResult {
+    const ref = row.ref ?? row.id;
+    if (ref === undefined || ref.length === 0) {
+      throw new SupabaseManagementError('project-shape', 502, 'Supabase project ref is missing.');
+    }
+    return {
+      ref,
+      name: row.name,
+      organizationId: row.organization_id,
+      organizationSlug: row.organization_slug,
+      region: row.region,
+      status: row.status,
+    };
   }
 
   private async request<T>(path: string, init: RequestInit = {}): Promise<T> {
