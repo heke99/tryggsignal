@@ -20,6 +20,7 @@ import {
   retryDocumentConfirmationAction,
   reviewCaseCompletenessAction,
   signDecisionAction,
+  setDocumentPortalVisibilityAction,
   setPrimaryPropertyAction,
   setWorkflowPauseAction,
   submitDecisionReviewAction,
@@ -99,6 +100,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   'document-confirm': 'Filen finns inte i Storage eller kunde inte köas för säkerhetskontroll.',
   'document-metadata':
     'Dokumentets klassificering kunde inte uppdateras. Kontrollera behörighet och värden.',
+  'document-portal':
+    'Handlingen kunde inte publiceras till Mina sidor. Begränsade och sekretessklassade handlingar får inte publiceras.',
   completeness:
     'Kompletthetsbedömningen kunde inte genomföras. Kontrollera profil, källor och behörighet.',
   'completeness-review': 'Den mänskliga kompletthetsgranskningen kunde inte sparas.',
@@ -147,6 +150,8 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'property-registered': 'Den provisoriska lokala fastigheten har registrerats och kopplats.',
   'document-confirmed': 'Filen är bekräftad och köad för säkerhetskontroll.',
   'document-metadata': 'Dokumentets metadata och informationsklass har uppdaterats.',
+  'document-published': 'Handlingen är nu tillgänglig i Mina sidor.',
+  'document-hidden': 'Handlingen är dold från Mina sidor.',
   completeness: 'Kompletthetsbedömningen har körts och sparats med evidens.',
   'completeness-review': 'Den mänskliga kompletthetsgranskningen har sparats.',
   'referral-created': 'Remissen har skapats.',
@@ -824,12 +829,43 @@ export default async function CaseWorkspacePage({
                     <h3>{doc.title}</h3>
                     <p className="meta">
                       {doc.document_type} · {doc.information_class} · sekretessnivå{' '}
-                      {doc.secrecy_level} · aktuell version {doc.current_version}
+                      {doc.secrecy_level} · aktuell version {doc.current_version} · Mina sidor{' '}
+                      <span className="status-badge">
+                        {doc.portal_visible ? 'PUBLICERAD' : 'DOLD'}
+                      </span>
                     </p>
                   </div>
                 </div>
 
                 {doc.description !== null && <p>{doc.description}</p>}
+
+                <form action={setDocumentPortalVisibilityAction} className="inline-action">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="documentId" value={doc.id} />
+                  <input
+                    type="hidden"
+                    name="visible"
+                    value={doc.portal_visible ? 'false' : 'true'}
+                  />
+                  <button
+                    type="submit"
+                    className="button-secondary"
+                    disabled={
+                      !doc.portal_visible &&
+                      (doc.information_class === 'RESTRICTED' ||
+                        doc.information_class === 'SECRET')
+                    }
+                  >
+                    {doc.portal_visible ? 'Dölj från Mina sidor' : 'Publicera till Mina sidor'}
+                  </button>
+                  {!doc.portal_visible &&
+                  (doc.information_class === 'RESTRICTED' ||
+                    doc.information_class === 'SECRET') ? (
+                    <span className="meta">
+                      Ändra informationsklass efter saklig sekretessbedömning innan publicering.
+                    </span>
+                  ) : null}
+                </form>
 
                 <details>
                   <summary>Redigera dokumentmetadata</summary>
