@@ -96,6 +96,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_parties.sql
       - name: G3 case property integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_properties.sql
+      - name: G4 document integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/case_documents.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
