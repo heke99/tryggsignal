@@ -73,7 +73,7 @@ For a real municipality:
    channel and record the step as EXTERNAL_BLOCKED until that channel exists.
 7. Run the authorization matrix and security advisor against the new data plane before promotion.
 8. Register only the final project ref, publishable key, region, schema version, health status and a
-   privileged credential *reference* in the control plane.
+   privileged credential _reference_ in the control plane.
 
 ## Recovery
 

@@ -45,7 +45,6 @@ describe('P39 Supabase management provider', () => {
     expect(String(init.body)).toContain('region_selection');
   });
 
-
   it('reuses a deterministic existing project instead of creating a duplicate', async () => {
     const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === 'https://api.supabase.com/v1/projects' && init?.method !== 'POST') {
