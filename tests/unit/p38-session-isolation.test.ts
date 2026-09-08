@@ -51,7 +51,10 @@ const SECRET = 'p38-test-secret-at-least-thirty-two-characters';
 
 describe('P38 host-only session isolation', () => {
   it('never emits a Domain attribute on access or refresh cookies', () => {
-    for (const cookie of [sessionCookie(custom, 'access'), refreshSessionCookie(custom, 'refresh')]) {
+    for (const cookie of [
+      sessionCookie(custom, 'access'),
+      refreshSessionCookie(custom, 'refresh'),
+    ]) {
       expect(cookie.name.startsWith('__Host-')).toBe(true);
       expect(cookie.options).toMatchObject({ secure: true, httpOnly: true, path: '/' });
       expect('domain' in cookie.options).toBe(false);
