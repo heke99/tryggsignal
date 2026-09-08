@@ -118,7 +118,40 @@ begin
 end;
 $$;
 
--- 5. READY remains blocked until verified fallback + healthy data plane exist.
+-- 5. Rerun may refresh the same project but may never silently rebind the tenant.
+do $
+declare
+  v_tenant uuid := (select v from p39 where k = 'tenant');
+  v_blocked boolean := false;
+begin
+  begin
+    perform public.register_tenant_data_plane(
+      v_tenant,
+      'PRODUCTION',
+      'different-project-ref',
+      'eu-north-1',
+      'https://different-project-ref.supabase.co',
+      'sb_publishable_other',
+      'tenant/syntetisk-kommun/service',
+      'schema-p39-test',
+      'HEALTHY'
+    );
+  exception when check_violation then
+    v_blocked := true;
+  end;
+
+  if not v_blocked then
+    raise exception 'P39: production data plane was silently rebound to another project';
+  end if;
+
+  if (select supabase_project_ref from platform.tenant_deployments
+      where tenant_id = v_tenant and environment = 'PRODUCTION') <> 'synthetic-project-ref' then
+    raise exception 'P39: failed rebind mutated the canonical project ref';
+  end if;
+end;
+$;
+
+-- 6. READY remains blocked until verified fallback + healthy data plane exist.
 do $$
 declare
   v_run uuid := (select v from p39 where k = 'run');
@@ -151,7 +184,7 @@ begin
 end;
 $$;
 
--- 6. FAILED -> REQUESTED recovery increments attempt count and clears completion.
+-- 7. FAILED -> REQUESTED recovery increments attempt count and clears completion.
 do $$
 declare
   v_tenant uuid;
@@ -174,7 +207,7 @@ begin
 end;
 $$;
 
--- 7. Service-only provisioning RPCs are never client APIs.
+-- 8. Service-only provisioning RPCs are never client APIs.
 do $$
 begin
   if has_function_privilege(
