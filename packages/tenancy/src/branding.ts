@@ -169,7 +169,6 @@ export function brandingCssVariables(tokens: BrandingTokens): string {
   return declarations.join(' ');
 }
 
-
 /** CSS custom properties suitable for React style props or other renderers. */
 export function brandingCssVariableMap(tokens: BrandingTokens): Readonly<Record<string, string>> {
   const variables: Record<string, string> = {};
