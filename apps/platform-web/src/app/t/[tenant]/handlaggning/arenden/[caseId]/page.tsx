@@ -1635,8 +1635,7 @@ export default async function CaseWorkspacePage({
                             {issuance.queuedAt.slice(0, 16).replace('T', ' ')}
                             {issuance.issuedAt === null
                               ? ''
-                              : ' · skickad ' +
-                                issuance.issuedAt.slice(0, 16).replace('T', ' ')}
+                              : ' · skickad ' + issuance.issuedAt.slice(0, 16).replace('T', ' ')}
                           </li>
                         );
                       })}

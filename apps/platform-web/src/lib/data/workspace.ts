@@ -1198,9 +1198,7 @@ export async function loadCaseDecisions(
     session.client
       .schema('decision')
       .from('issuances')
-      .select(
-        'id, decision_id, recipient_party_id, status, queued_at, issued_at, delivery_id',
-      )
+      .select('id, decision_id, recipient_party_id, status, queued_at, issued_at, delivery_id')
       .in('decision_id', ids)
       .order('queued_at', { ascending: false }),
   ]);

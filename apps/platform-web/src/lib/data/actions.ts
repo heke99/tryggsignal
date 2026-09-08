@@ -1069,7 +1069,6 @@ export async function queueReferralFollowupAction(formData: FormData): Promise<v
   redirect(`${detailPath(caseId)}?ok=referral-followup#remisser`);
 }
 
-
 function nonEmptyLines(value: string, maxItems = 100): string[] {
   return value
     .split(/\r?\n/)
