@@ -709,7 +709,7 @@ alter table documents.document_versions
   add column signature_version text,
   add column scan_started_at timestamptz,
   add column scan_result text
-    check (scan_result is null or scan_result in ('CLEAN', 'INFECTED', 'ERROR')),
+    check (scan_result is null or scan_result in ('CLEAN', 'INFECTED', 'REJECTED', 'ERROR')),
   add column threat_name text;
 
 insert into authz.permissions (key, name)
@@ -857,7 +857,7 @@ declare
   v_outcome text := upper(trim(coalesce(p_outcome, '')));
   v_reason text := nullif(left(trim(coalesce(p_reason, '')), 2000), '');
 begin
-  if v_outcome not in ('CLEAN', 'INFECTED', 'ERROR') then
+  if v_outcome not in ('CLEAN', 'INFECTED', 'REJECTED', 'ERROR') then
     raise exception 'Unsupported scanner outcome %', v_outcome
       using errcode = 'check_violation';
   end if;
@@ -902,7 +902,7 @@ begin
       end,
       ingestion_status = case
         when v_outcome = 'CLEAN' then 'CLEAN'
-        when v_outcome = 'INFECTED' then 'REJECTED'
+        when v_outcome in ('INFECTED', 'REJECTED') then 'REJECTED'
         else 'FAILED'
       end
   where id = v_version.id;
