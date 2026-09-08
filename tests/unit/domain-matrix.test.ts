@@ -151,9 +151,13 @@ describe('cross-tenant negative tests (masterplan 202)', () => {
     if (viaCustom.kind !== 'TENANT' || viaPlatform.kind !== 'TENANT')
       throw new Error('expected tenants');
     expect(viaCustom.context.tenantId).toBe(viaPlatform.context.tenantId);
-    // The domain identity still differs, which is what keeps cache and cookie
-    // scoping per host rather than per tenant only.
+    // The domain identity still differs, and the cache key is additionally host
+    // bound. A custom-domain response can therefore never populate the fallback
+    // host's cache (or vice versa).
     expect(viaCustom.context.domainId).not.toBe(viaPlatform.context.domainId);
+    expect(tenantCacheKey(viaCustom.context, 'branding')).not.toBe(
+      tenantCacheKey(viaPlatform.context, 'branding'),
+    );
   });
 
   it('keeps cache keys and cookie names disjoint between tenants', async () => {

@@ -15,6 +15,14 @@ describe('normalizeHostname (masterplan 160)', () => {
       ok: true,
       hostname: 'mjolby.tryggsignal.se',
     });
+    expect(normalizeHostname('mjolby.tryggsignal.se:443:444')).toEqual({
+      ok: false,
+      error: 'INVALID_PORT',
+    });
+    expect(normalizeHostname('mjolby.tryggsignal.se:70000')).toEqual({
+      ok: false,
+      error: 'INVALID_PORT',
+    });
   });
 
   it('converts internationalized hostnames to their ASCII form', () => {
@@ -30,6 +38,17 @@ describe('normalizeHostname (masterplan 160)', () => {
     expect(normalizeHostname('127.0.0.1').error).toBe('IP_LITERAL_NOT_ALLOWED');
     expect(normalizeHostname('[::1]').error).toBe('IP_LITERAL_NOT_ALLOWED');
     expect(normalizeHostname(`${'a'.repeat(64)}.tryggsignal.se`).error).toBe('INVALID_LABEL');
+  });
+
+  it('rejects ambiguous forwarded-host chains even behind a trusted proxy', () => {
+    const headers = new Headers({
+      host: 'mjolby.tryggsignal.se',
+      'x-forwarded-host': 'mjolby.tryggsignal.se, attacker.example',
+    });
+    expect(requestHostname(headers, { trustForwardedHost: true })).toEqual({
+      ok: false,
+      error: 'INVALID_CHARACTERS',
+    });
   });
 
   it('ignores untrusted forwarded host unless the deployment trusts the proxy', () => {

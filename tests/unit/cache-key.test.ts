@@ -16,7 +16,9 @@ const context: TenantContext = {
 
 describe('tenant cache and cookie scoping (masterplan 142, 180, 184)', () => {
   it('includes tenant, domain and branding version in the cache key', () => {
-    expect(tenantCacheKey(context, 'branding')).toBe('ts:tenant-a:dom-1:b2:branding');
+    expect(tenantCacheKey(context, 'branding')).toBe(
+      'ts:tenant-a:dom-1:mjolby.tryggsignal.se:b2:branding',
+    );
   });
 
   it('produces different keys for different tenants and branding versions', () => {
@@ -24,6 +26,21 @@ describe('tenant cache and cookie scoping (masterplan 142, 180, 184)', () => {
     expect(tenantCacheKey(other, 'branding')).not.toBe(tenantCacheKey(context, 'branding'));
     expect(tenantCacheKey({ ...context, brandingVersion: 3 }, 'branding')).not.toBe(
       tenantCacheKey(context, 'branding'),
+    );
+  });
+
+  it('keeps custom and fallback hosts disjoint even if a caller accidentally reuses a domain id', () => {
+    const custom = {
+      ...context,
+      resolvedHostname: 'bygglov.mjolby.se',
+    };
+    expect(tenantCacheKey(custom, 'branding')).not.toBe(tenantCacheKey(context, 'branding'));
+  });
+
+  it('cannot collide by moving separators between namespace and parts', () => {
+    expect(tenantCacheKey(context, 'cases:a')).not.toBe(tenantCacheKey(context, 'cases', 'a'));
+    expect(tenantCacheKey(context, 'cases', 'a:b')).not.toBe(
+      tenantCacheKey(context, 'cases:a', 'b'),
     );
   });
 

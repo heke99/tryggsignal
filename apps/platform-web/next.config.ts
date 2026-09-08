@@ -22,9 +22,13 @@ const securityHeaders = [
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self'",
       "connect-src 'self' https://*.supabase.co",
+      "object-src 'none'",
+      "frame-src 'none'",
       "frame-ancestors 'none'",
+      "manifest-src 'self'",
       "base-uri 'self'",
       "form-action 'self'",
+      'upgrade-insecure-requests',
     ].join('; '),
   },
 ];
