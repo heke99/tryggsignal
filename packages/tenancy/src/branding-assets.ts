@@ -39,12 +39,7 @@ function inspectPng(bytes: Uint8Array): BrandingImageInfo | null {
   }
 
   // A valid PNG starts with an IHDR chunk whose width/height are big-endian.
-  if (
-    bytes[12] !== 0x49 ||
-    bytes[13] !== 0x48 ||
-    bytes[14] !== 0x44 ||
-    bytes[15] !== 0x52
-  ) {
+  if (bytes[12] !== 0x49 || bytes[13] !== 0x48 || bytes[14] !== 0x44 || bytes[15] !== 0x52) {
     throw new InvalidBrandingAssetError('PNG is missing its IHDR header.');
   }
 
@@ -83,12 +78,7 @@ function inspectWebp(bytes: Uint8Array): BrandingImageInfo | null {
     width = 1 + (b1 | ((b2 & 0x3f) << 8));
     height = 1 + ((b2 >> 6) | (b3 << 2) | ((b4 & 0x0f) << 10));
   } else if (ascii(12, 'VP8 ')) {
-    if (
-      bytes.length < 30 ||
-      bytes[23] !== 0x9d ||
-      bytes[24] !== 0x01 ||
-      bytes[25] !== 0x2a
-    ) {
+    if (bytes.length < 30 || bytes[23] !== 0x9d || bytes[24] !== 0x01 || bytes[25] !== 0x2a) {
       throw new InvalidBrandingAssetError('WebP lossy frame header is invalid.');
     }
     width = (bytes[26]! | (bytes[27]! << 8)) & 0x3fff;
@@ -119,7 +109,5 @@ export function inspectBrandingImage(bytes: Uint8Array): BrandingImageInfo {
   const webp = inspectWebp(bytes);
   if (webp !== null) return webp;
 
-  throw new InvalidBrandingAssetError(
-    'Only genuine PNG or WebP image bytes are accepted.',
-  );
+  throw new InvalidBrandingAssetError('Only genuine PNG or WebP image bytes are accepted.');
 }
