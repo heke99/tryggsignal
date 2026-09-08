@@ -3,6 +3,7 @@ import { currentTenant } from '@/lib/tenant/context';
 import { safeReturnTo } from '@tryggsignal/identity';
 import {
   AuthNotConfiguredError,
+  RateLimitRejectedError,
   SignInRejectedError,
   issueSignInState,
   signInWithPassword,
@@ -11,10 +12,6 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-/**
- * Masterplan 178/183: sign-in is per tenant, on the tenant's own host, and the
- * form carries a signed state bound to this tenant and domain.
- */
 export default async function TenantLogin({
   searchParams,
 }: {
@@ -52,14 +49,31 @@ export default async function TenantLogin({
     try {
       await signInWithPassword(context, email, password);
     } catch (error) {
-      if (error instanceof SignInRejectedError || error instanceof AuthNotConfiguredError) {
+      if (error instanceof RateLimitRejectedError) {
+        redirect('/login?error=rate-limit');
+      }
+      if (error instanceof SignInRejectedError) {
         redirect('/login?error=credentials');
+      }
+      if (error instanceof AuthNotConfiguredError) {
+        redirect('/login?error=configuration');
       }
       throw error;
     }
 
     redirect(target);
   }
+
+  const errorText =
+    params.error === 'state'
+      ? 'Inloggningsförsöket kunde inte verifieras. Försök igen.'
+      : params.error === 'rate-limit'
+        ? 'För många inloggningsförsök. Försök igen om en stund.'
+        : params.error === 'configuration'
+          ? 'Kommunens inloggning är inte färdigkonfigurerad.'
+          : params.error === 'credentials'
+            ? 'Fel e-postadress eller lösenord.'
+            : null;
 
   return (
     <main id="innehall">
@@ -69,11 +83,9 @@ export default async function TenantLogin({
         bunden till {tenant.resolvedHostname} och följer inte med till någon annan kommun.
       </p>
 
-      {params.error !== undefined && (
+      {errorText !== null && (
         <p role="alert" className="card">
-          {params.error === 'state'
-            ? 'Inloggningsförsöket kunde inte verifieras. Försök igen.'
-            : 'Fel e-postadress eller lösenord.'}
+          {errorText}
         </p>
       )}
 
