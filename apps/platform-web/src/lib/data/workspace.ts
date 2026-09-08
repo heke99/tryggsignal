@@ -690,6 +690,209 @@ export async function loadCaseWorkspace(
   };
 }
 
+export interface CompletenessProfile {
+  readonly versionId: string;
+  readonly ruleSetId: string;
+  readonly key: string;
+  readonly name: string;
+  readonly version: number;
+  readonly validFrom: string;
+  readonly validTo: string | null;
+}
+
+export interface CompletenessEvidence {
+  readonly rule_id: string;
+  readonly key: string;
+  readonly name: string;
+  readonly kind: string;
+  readonly value: string | null;
+  readonly result: 'PASS' | 'FAIL' | 'HUMAN_REVIEW';
+  readonly matched_count: number;
+  readonly legal_reference: string | null;
+  readonly sources: readonly {
+    source_type: string;
+    reference: string;
+    url: string | null;
+  }[];
+}
+
+export interface CaseCompleteness {
+  readonly profiles: readonly CompletenessProfile[];
+  readonly current: {
+    id: string;
+    ruleSetVersionId: string;
+    result: 'COMPLETE' | 'INCOMPLETE' | 'HUMAN_REVIEW';
+    evidence: readonly CompletenessEvidence[];
+    missingItems: readonly {
+      rule_id: string;
+      key: string;
+      label: string;
+      reason: string;
+    }[];
+    evaluatedAt: string;
+    review: {
+      decision: 'COMPLETE' | 'INCOMPLETE';
+      note: string;
+      reviewedAt: string;
+    } | null;
+  } | null;
+}
+
+function asArray(value: unknown): readonly Record<string, unknown>[] {
+  return Array.isArray(value)
+    ? value.filter(
+        (entry): entry is Record<string, unknown> =>
+          typeof entry === 'object' && entry !== null && !Array.isArray(entry),
+      )
+    : [];
+}
+
+export async function loadCaseCompleteness(
+  context: TenantContext,
+  caseId: string,
+  authorityId: string,
+): Promise<CaseCompleteness> {
+  const session = await tenantClient(context);
+  if (!session.authenticated) return { profiles: [], current: null };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const ruleSets = await session.client
+    .schema('rules')
+    .from('rule_sets')
+    .select('id, key, name, authority_id')
+    .eq('domain', 'COMPLETENESS')
+    .or(`authority_id.is.null,authority_id.eq.${authorityId}`)
+    .order('name', { ascending: true });
+
+  const ruleSetRows = (ruleSets.data ?? []) as Array<{
+    id: string;
+    key: string;
+    name: string;
+    authority_id: string | null;
+  }>;
+  const ruleSetIds = ruleSetRows.map((row) => row.id);
+
+  const versions =
+    ruleSetIds.length === 0
+      ? []
+      : ((
+          await session.client
+            .schema('rules')
+            .from('rule_set_versions')
+            .select('id, rule_set_id, version, valid_from, valid_to, published_at')
+            .in('rule_set_id', ruleSetIds)
+            .not('published_at', 'is', null)
+            .lte('valid_from', today)
+            .or(`valid_to.is.null,valid_to.gt.${today}`)
+            .order('version', { ascending: false })
+        ).data ?? []);
+
+  const setById = new Map(ruleSetRows.map((row) => [row.id, row] as const));
+  const profiles: CompletenessProfile[] = versions.flatMap((version) => {
+    const row = version as {
+      id: string;
+      rule_set_id: string;
+      version: number;
+      valid_from: string;
+      valid_to: string | null;
+    };
+    const set = setById.get(row.rule_set_id);
+    if (set === undefined) return [];
+    return [
+      {
+        versionId: row.id,
+        ruleSetId: set.id,
+        key: set.key,
+        name: set.name,
+        version: row.version,
+        validFrom: row.valid_from,
+        validTo: row.valid_to,
+      },
+    ];
+  });
+
+  const assessment = await session.client
+    .schema('rules')
+    .from('completeness_assessments')
+    .select(
+      'id, rule_set_version_id, result, evidence, missing_items, evaluated_at',
+    )
+    .eq('case_id', caseId)
+    .is('superseded_at', null)
+    .order('evaluated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<{
+      id: string;
+      rule_set_version_id: string;
+      result: 'COMPLETE' | 'INCOMPLETE' | 'HUMAN_REVIEW';
+      evidence: unknown;
+      missing_items: unknown;
+      evaluated_at: string;
+    }>();
+
+  if (assessment.data === null) return { profiles, current: null };
+
+  const review = await session.client
+    .schema('rules')
+    .from('completeness_reviews')
+    .select('decision, note, reviewed_at')
+    .eq('assessment_id', assessment.data.id)
+    .maybeSingle<{
+      decision: 'COMPLETE' | 'INCOMPLETE';
+      note: string;
+      reviewed_at: string;
+    }>();
+
+  const evidence = asArray(assessment.data.evidence).map((entry) => ({
+    rule_id: String(entry['rule_id'] ?? ''),
+    key: String(entry['key'] ?? ''),
+    name: String(entry['name'] ?? ''),
+    kind: String(entry['kind'] ?? ''),
+    value: entry['value'] === null || entry['value'] === undefined ? null : String(entry['value']),
+    result:
+      entry['result'] === 'PASS' || entry['result'] === 'FAIL'
+        ? entry['result']
+        : 'HUMAN_REVIEW',
+    matched_count: Number(entry['matched_count'] ?? 0),
+    legal_reference:
+      entry['legal_reference'] === null || entry['legal_reference'] === undefined
+        ? null
+        : String(entry['legal_reference']),
+    sources: asArray(entry['sources']).map((source) => ({
+      source_type: String(source['source_type'] ?? ''),
+      reference: String(source['reference'] ?? ''),
+      url: source['url'] === null || source['url'] === undefined ? null : String(source['url']),
+    })),
+  })) satisfies CompletenessEvidence[];
+
+  const missingItems = asArray(assessment.data.missing_items).map((entry) => ({
+    rule_id: String(entry['rule_id'] ?? ''),
+    key: String(entry['key'] ?? ''),
+    label: String(entry['label'] ?? ''),
+    reason: String(entry['reason'] ?? ''),
+  }));
+
+  return {
+    profiles,
+    current: {
+      id: assessment.data.id,
+      ruleSetVersionId: assessment.data.rule_set_version_id,
+      result: assessment.data.result,
+      evidence,
+      missingItems,
+      evaluatedAt: assessment.data.evaluated_at,
+      review:
+        review.data === null
+          ? null
+          : {
+              decision: review.data.decision,
+              note: review.data.note,
+              reviewedAt: review.data.reviewed_at,
+            },
+    },
+  };
+}
+
 export interface CaseCreationOptions {
   readonly available: boolean;
   readonly reason?: string;
