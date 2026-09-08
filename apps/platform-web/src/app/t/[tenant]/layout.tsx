@@ -4,10 +4,7 @@ import { cache, type CSSProperties } from 'react';
 import { brandingCssVariableMap } from '@tryggsignal/tenancy';
 import type { TenantContext } from '@tryggsignal/tenancy';
 import { currentTenant } from '@/lib/tenant/context';
-import {
-  resolvePublishedBranding,
-  type TenantBrandingView,
-} from '@/lib/tenant/branding';
+import { resolvePublishedBranding, type TenantBrandingView } from '@/lib/tenant/branding';
 
 interface TenantBrandingContext {
   readonly tenant: TenantContext;
