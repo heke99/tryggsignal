@@ -121,6 +121,7 @@ export interface CaseHeader {
   readonly system_of_record: string;
   readonly assigned_user_id: string | null;
   readonly assigned_team_id: string | null;
+  readonly primary_property_id: string | null;
 }
 
 export interface CaseWorkflow {
@@ -184,6 +185,60 @@ interface PartyRow {
   readonly contact_phone: string | null;
 }
 
+export interface CaseProperty {
+  readonly property_id: string;
+  readonly designation: string;
+  readonly municipality_code: string | null;
+  readonly source: string;
+  readonly source_version: string | null;
+  readonly is_primary: boolean;
+  readonly identifiers: readonly {
+    id: string;
+    identifier_type: string;
+    value: string;
+    source: string;
+  }[];
+  readonly addresses: readonly {
+    id: string;
+    street_name: string;
+    street_number: string | null;
+    letter: string | null;
+    postal_code: string | null;
+    postal_town: string | null;
+    source: string;
+  }[];
+  readonly buildings: readonly {
+    id: string;
+    building_designation: string | null;
+    building_purpose: string | null;
+    year_built: number | null;
+    gross_floor_area: number | null;
+    floors: number | null;
+    source: string;
+  }[];
+}
+
+export interface PropertyCandidate {
+  readonly id: string;
+  readonly designation: string;
+  readonly municipality_code: string | null;
+  readonly source: string;
+  readonly address: string | null;
+}
+
+interface CasePropertyLinkRow {
+  readonly property_id: string;
+  readonly is_primary: boolean;
+}
+
+interface PropertyRow {
+  readonly id: string;
+  readonly designation: string;
+  readonly municipality_code: string | null;
+  readonly source: string;
+  readonly source_version: string | null;
+}
+
 export interface CaseWorkspace {
   readonly available: boolean;
   readonly reason?: string;
@@ -200,6 +255,7 @@ export interface CaseWorkspace {
   readonly assignees: readonly StaffOption[];
   readonly teams: readonly TeamOption[];
   readonly parties: readonly CaseParty[];
+  readonly properties: readonly CaseProperty[];
 }
 
 interface WorkflowDefinition {
@@ -229,6 +285,7 @@ export async function loadCaseWorkspace(
     assignees: [],
     teams: [],
     parties: [],
+    properties: [],
   };
 
   let session;
@@ -247,7 +304,7 @@ export async function loadCaseWorkspace(
     .schema('core')
     .from('cases')
     .select(
-      'id, authority_id, department_id, case_number, title, status, phase, information_class, statutory_due_at, effective_due_at, system_of_record, assigned_user_id, assigned_team_id',
+      'id, authority_id, department_id, case_number, title, status, phase, information_class, statutory_due_at, effective_due_at, system_of_record, assigned_user_id, assigned_team_id, primary_property_id',
     )
     .eq('id', caseId)
     .maybeSingle<CaseHeader>();
@@ -262,8 +319,16 @@ export async function loadCaseWorkspace(
     };
   }
 
-  const [documents, deadlines, history, workflowInstance, memberships, teams, partyRelations] =
-    await Promise.all([
+  const [
+    documents,
+    deadlines,
+    history,
+    workflowInstance,
+    memberships,
+    teams,
+    partyRelations,
+    propertyLinks,
+  ] = await Promise.all([
       session.client
         .schema('documents')
         .from('documents')
@@ -316,6 +381,12 @@ export async function loadCaseWorkspace(
         .select('id, party_id, relationship, identity_user_id, verified_at')
         .eq('case_id', caseId)
         .order('created_at', { ascending: true }),
+      session.client
+        .schema('core')
+        .from('case_properties')
+        .select('property_id, is_primary')
+        .eq('case_id', caseId)
+        .order('is_primary', { ascending: false }),
     ]);
 
   const userIds = Array.from(
@@ -375,6 +446,83 @@ export async function loadCaseWorkspace(
     ];
   });
 
+  const propertyLinkRows = (propertyLinks.data ?? []) as CasePropertyLinkRow[];
+  const linkedPropertyIds = propertyLinkRows.map((link) => link.property_id);
+  const [linkedPropertiesResult, identifiersResult, addressesResult, buildingsResult] =
+    linkedPropertyIds.length === 0
+      ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
+      : await Promise.all([
+          session.client
+            .schema('property')
+            .from('properties')
+            .select('id, designation, municipality_code, source, source_version')
+            .in('id', linkedPropertyIds),
+          session.client
+            .schema('property')
+            .from('property_identifiers')
+            .select('id, property_id, identifier_type, value, source')
+            .in('property_id', linkedPropertyIds)
+            .eq('is_current', true)
+            .order('identifier_type', { ascending: true }),
+          session.client
+            .schema('property')
+            .from('addresses')
+            .select(
+              'id, property_id, street_name, street_number, letter, postal_code, postal_town, source',
+            )
+            .in('property_id', linkedPropertyIds)
+            .order('street_name', { ascending: true }),
+          session.client
+            .schema('property')
+            .from('buildings')
+            .select(
+              'id, property_id, building_designation, building_purpose, year_built, gross_floor_area, floors, source',
+            )
+            .in('property_id', linkedPropertyIds)
+            .order('building_designation', { ascending: true }),
+        ]);
+
+  const linkedPropertyById = new Map(
+    ((linkedPropertiesResult.data ?? []) as PropertyRow[]).map((property) => [
+      property.id,
+      property,
+    ]),
+  );
+  const identifiers = (identifiersResult.data ?? []) as Array<CaseProperty['identifiers'][number] & {
+    property_id: string;
+  }>;
+  const addresses = (addressesResult.data ?? []) as Array<CaseProperty['addresses'][number] & {
+    property_id: string;
+  }>;
+  const buildings = (buildingsResult.data ?? []) as Array<CaseProperty['buildings'][number] & {
+    property_id: string;
+  }>;
+
+  const properties: CaseProperty[] = propertyLinkRows.flatMap((link) => {
+    const property = linkedPropertyById.get(link.property_id);
+    if (property === undefined) return [];
+
+    return [
+      {
+        property_id: property.id,
+        designation: property.designation,
+        municipality_code: property.municipality_code,
+        source: property.source,
+        source_version: property.source_version,
+        is_primary: link.is_primary,
+        identifiers: identifiers
+          .filter((identifier) => identifier.property_id === property.id)
+          .map(({ property_id: _propertyId, ...identifier }) => identifier),
+        addresses: addresses
+          .filter((address) => address.property_id === property.id)
+          .map(({ property_id: _propertyId, ...address }) => address),
+        buildings: buildings
+          .filter((building) => building.property_id === property.id)
+          .map(({ property_id: _propertyId, ...building }) => building),
+      },
+    ];
+  });
+
   let workflow: CaseWorkflow | null = null;
 
   if (workflowInstance.data !== null) {
@@ -425,6 +573,7 @@ export async function loadCaseWorkspace(
     assignees: assignees as StaffOption[],
     teams: (teams.data ?? []) as TeamOption[],
     parties,
+    properties,
   };
 }
 
@@ -529,4 +678,138 @@ export async function loadCaseCreationOptions(
         };
       }),
   };
+}
+
+
+function normalizePropertySearch(value: string): string {
+  return value
+    .trim()
+    .replace(/[%_*,()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
+/**
+ * G3 property lookup. The case is resolved through RLS first; candidates are
+ * then restricted to the same authority. No search result can cross a tenant
+ * or authority boundary.
+ */
+export async function searchPropertyCandidates(
+  context: TenantContext,
+  caseId: string,
+  query: string,
+): Promise<readonly PropertyCandidate[]> {
+  const normalized = normalizePropertySearch(query);
+  if (normalized.length < 2) return [];
+
+  let session;
+  try {
+    session = await tenantClient(context);
+  } catch (error) {
+    if (error instanceof TenantDataPlaneUnavailableError) return [];
+    throw error;
+  }
+  if (!session.authenticated) return [];
+
+  const { data: caseRow } = await session.client
+    .schema('core')
+    .from('cases')
+    .select('id, authority_id')
+    .eq('id', caseId)
+    .maybeSingle<{ id: string; authority_id: string }>();
+
+  if (caseRow === null) return [];
+
+  const term = `%${normalized}%`;
+  const [designationMatches, identifierMatches, addressMatches] = await Promise.all([
+    session.client
+      .schema('property')
+      .from('properties')
+      .select('id')
+      .eq('authority_id', caseRow.authority_id)
+      .ilike('designation', term)
+      .limit(20),
+    session.client
+      .schema('property')
+      .from('property_identifiers')
+      .select('property_id')
+      .eq('authority_id', caseRow.authority_id)
+      .ilike('value', term)
+      .limit(20),
+    session.client
+      .schema('property')
+      .from('addresses')
+      .select('property_id')
+      .eq('authority_id', caseRow.authority_id)
+      .ilike('street_name', term)
+      .limit(20),
+  ]);
+
+  const ids = Array.from(
+    new Set([
+      ...(designationMatches.data ?? []).map((row) => String((row as { id: string }).id)),
+      ...(identifierMatches.data ?? []).map((row) =>
+        String((row as { property_id: string }).property_id),
+      ),
+      ...(addressMatches.data ?? [])
+        .map((row) => (row as { property_id: string | null }).property_id)
+        .filter((id): id is string => typeof id === 'string'),
+    ]),
+  ).slice(0, 30);
+
+  if (ids.length === 0) return [];
+
+  const [propertyRows, addressRows] = await Promise.all([
+    session.client
+      .schema('property')
+      .from('properties')
+      .select('id, designation, municipality_code, source')
+      .eq('authority_id', caseRow.authority_id)
+      .in('id', ids)
+      .order('designation', { ascending: true }),
+    session.client
+      .schema('property')
+      .from('addresses')
+      .select('property_id, street_name, street_number, letter, postal_code, postal_town')
+      .eq('authority_id', caseRow.authority_id)
+      .in('property_id', ids)
+      .order('street_name', { ascending: true }),
+  ]);
+
+  const firstAddress = new Map<string, string>();
+  for (const row of addressRows.data ?? []) {
+    const address = row as {
+      property_id: string | null;
+      street_name: string;
+      street_number: string | null;
+      letter: string | null;
+      postal_code: string | null;
+      postal_town: string | null;
+    };
+    if (address.property_id === null || firstAddress.has(address.property_id)) continue;
+    firstAddress.set(
+      address.property_id,
+      [
+        address.street_name,
+        `${address.street_number ?? ''}${address.letter ?? ''}`.trim(),
+        address.postal_code,
+        address.postal_town,
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+  }
+
+  return (propertyRows.data ?? []).map((row) => {
+    const property = row as {
+      id: string;
+      designation: string;
+      municipality_code: string | null;
+      source: string;
+    };
+    return {
+      ...property,
+      address: firstAddress.get(property.id) ?? null,
+    };
+  });
 }
