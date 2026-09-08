@@ -124,7 +124,9 @@ export async function uploadBrandingAssetAction(formData: FormData): Promise<voi
   const brandingId = uuid(formData, 'brandingId');
   const kindRaw = value(formData, 'kind', 20);
   const kind: BrandingAssetKind | null =
-    kindRaw === 'LOGO' || kindRaw === 'LOGO_DARK' || kindRaw === 'FAVICON' ? kindRaw : null;
+    kindRaw === 'LOGO' || kindRaw === 'LOGO_DARK' || kindRaw === 'FAVICON'
+      ? kindRaw
+      : null;
   const file = formData.get('asset');
 
   if (brandingId === null || kind === null || !(file instanceof File) || file.size === 0) {
