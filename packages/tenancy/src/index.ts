@@ -7,3 +7,4 @@ export * from './branding';
 export * from './branding-assets';
 export * from './routes';
 export * from './rate-limit';
+export * from './custom-domains';
