@@ -717,7 +717,7 @@ returns integer
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_count integer := 0;
   v_referral record;
@@ -753,7 +753,7 @@ begin
 
   return v_count;
 end;
-$;
+$$;
 
 revoke all on function referral.sweep_overdue() from public;
 revoke all on function referral.sweep_overdue() from anon, authenticated;
