@@ -1,0 +1,220 @@
+name: Release Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      tenant_host:
+        description: Active tenant hostname to verify after production deployment
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-gate-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  NODE_VERSION: '22'
+  PNPM_VERSION: '10.0.0'
+
+jobs:
+  verify:
+    name: source verification
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: node scripts/sql-guard.mjs
+
+  database:
+    name: migration replay / RLS / integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start disposable Supabase stack
+        run: supabase start
+      - name: Replay migrations from zero
+        run: supabase db reset --no-seed
+      - name: Restart disposable Supabase services after reset
+        run: supabase start
+      - name: Resolve local Supabase runtime
+        shell: bash
+        run: |
+          status="$(supabase status -o env)"
+          db_url="$(printf '%s\n' "$status" | sed -n 's/^DB_URL=//p' | tr -d '"')"
+          api_url="$(printf '%s\n' "$status" | sed -n 's/^API_URL=//p' | tr -d '"')"
+          service_role_key="$(printf '%s\n' "$status" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')"
+          if [ -z "$db_url" ] || [ -z "$api_url" ] || [ -z "$service_role_key" ]; then
+            echo "Could not resolve local Supabase runtime credentials" >&2
+            printf '%s\n' "$status" >&2
+            exit 1
+          fi
+          echo "DB_URL=$db_url" >> "$GITHUB_ENV"
+          echo "CONTROL_PLANE_SUPABASE_URL=$api_url" >> "$GITHUB_ENV"
+          echo "CONTROL_PLANE_SECRET_REFERENCE=local/service-role" >> "$GITHUB_ENV"
+          echo "TS_SECRET_LOCAL_SERVICE_ROLE=$service_role_key" >> "$GITHUB_ENV"
+      - name: DB status command
+        run: pnpm db:status
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Authorization matrix
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/rls/authorization_matrix.sql
+      - name: Runtime integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/runtime.sql
+      - name: Branding and provisioning integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
+      - name: Worker runtime integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/worker_runtime.sql
+      - name: Tenant runtime isolation matrix
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/tenant_runtime.sql
+      - name: Stop disposable Supabase stack
+        if: always()
+        run: supabase stop --no-backup
+
+  e2e:
+    name: Playwright platform E2E
+    runs-on: ubuntu-latest
+    needs: [verify, database]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+
+  release-gate:
+    name: release gate
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [verify, database, e2e]
+    steps:
+      - name: Require every release check
+        shell: bash
+        run: |
+          test "${{ needs.verify.result }}" = "success"
+          test "${{ needs.database.result }}" = "success"
+          test "${{ needs.e2e.result }}" = "success"
+
+  deploy-marketing:
+    name: deploy marketing production
+    runs-on: ubuntu-latest
+    needs: [release-gate]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_e3htkJPyBNSw3Ix1KQLlf180
+      VERCEL_PROJECT_ID: prj_CoRS8zrb1FbE7lk531VXrcoiK3St
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Require Vercel token
+        run: test -n "$VERCEL_TOKEN"
+      - name: Link marketing project
+        run: |
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          pnpm dlx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+      - name: Deploy marketing
+        id: deploy
+        run: |
+          pnpm dlx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" | tee deployment.txt
+          url="$(tail -n 1 deployment.txt | tr -d '\r')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  deploy-platform:
+    name: deploy platform production
+    runs-on: ubuntu-latest
+    needs: [release-gate]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    environment: production
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_e3htkJPyBNSw3Ix1KQLlf180
+      VERCEL_PROJECT_ID: prj_VPfXBP3n40ZyLprbva7G74tedLpZ
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Require Vercel token
+        run: test -n "$VERCEL_TOKEN"
+      - name: Link platform project
+        run: |
+          mkdir -p .vercel
+          printf '{"orgId":"%s","projectId":"%s"}\n' "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" > .vercel/project.json
+          pnpm dlx vercel@latest pull --yes --environment=production --token "$VERCEL_TOKEN"
+      - name: Deploy platform
+        id: deploy
+        run: |
+          pnpm dlx vercel@latest deploy --prod --yes --token "$VERCEL_TOKEN" | tee deployment.txt
+          url="$(tail -n 1 deployment.txt | tr -d '\r')"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  post-deploy:
+    name: production smoke verification
+    runs-on: ubuntu-latest
+    needs: [deploy-marketing, deploy-platform]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Marketing health
+        run: curl --fail --silent --show-error --location https://tryggsignal.se/ >/dev/null
+      - name: Platform gateway health
+        run: curl --fail --silent --show-error --location https://app.tryggsignal.se/ >/dev/null
+      - name: Municipality discovery health
+        run: curl --fail --silent --show-error --location https://kommuner.tryggsignal.se/ >/dev/null
+      - name: Active tenant health
+        env:
+          TENANT_HOST: ${{ inputs.tenant_host }}
+        run: |
+          case "$TENANT_HOST" in
+            ""|*/*|*:*|*' '*)
+              echo "tenant_host must be a bare hostname" >&2
+              exit 1
+              ;;
+          esac
+          curl --fail --silent --show-error --location "https://$TENANT_HOST/" >/dev/null

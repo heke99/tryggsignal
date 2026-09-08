@@ -1,0 +1,3 @@
+# Local/CI-only Supabase configuration.
+# Production project settings are managed separately and never stored here.
+project_id = "tryggsignal"

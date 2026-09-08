@@ -1,89 +1,134 @@
 # Master Plan Status
 
-Last updated: 2026-09-07.
+Last updated: 2026-09-08.
 
-Status may only be one of `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, `EXTERNAL_BLOCKED`, `RED`, `GREEN`.
-A phase becomes `GREEN` only when its gate has actually passed. See `docs/blockers.md` for
-external dependencies and the current database incident, and `docs/baseline-report.md`
-for the P0 baseline.
+Status is evidence-based. A phase is only `GREEN` when its own implemented gate has passed.
+External credentials, production domains, vendor access, paid project creation and a real pilot are
+never simulated to make the plan look complete. See `docs/blockers.md` and
+`docs/security/security-review.md`.
+
+## Current remediation result
+
+The corrected execution order A → B → C → R has now been implemented on the remediation PR.
+
+- **A — status/repo truth:** stale blockers/security text corrected; `db:status` implemented; database is healthy.
+- **B — tenant data plane:** tenant case-data has no control-plane fallback. Runtime requires an exact
+  hostname/tenant/deployment/project match and fails closed.
+- **C — auth/session:** password auth is bound to the tenant's configured provider/data plane; access and
+  refresh cookies are host-only; token validity is checked against Auth; refresh/logout/revocation and
+  distributed login rate limiting are implemented.
+- **R — release gate:** automatic `main` production deploys are disabled for both app projects. The new
+  Release Gate runs source verification, clean migration replay, RLS/integration matrices and Playwright
+  before a manual production deployment may run.
+
+The first full Release Gate run is GREEN. Production itself is deliberately not marked GREEN while
+EB-01/EB-02 remain.
 
 ## Gate results
 
-| Gate                                 | Result                                              | When                                                                                                                                                                                    |
-| ------------------------------------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm lint`                          | GREEN                                               | 2026-09-07, after the final change                                                                                                                                                      |
-| `pnpm typecheck`                     | GREEN                                               | same                                                                                                                                                                                    |
-| `pnpm test` (120 tests)              | GREEN                                               | same                                                                                                                                                                                    |
-| `pnpm build` (both Next.js apps)     | GREEN                                               | same                                                                                                                                                                                    |
-| `pnpm format`                        | GREEN                                               | same                                                                                                                                                                                    |
-| `node scripts/sql-guard.mjs`         | GREEN                                               | same                                                                                                                                                                                    |
-| `tests/rls/authorization_matrix.sql` | GREEN                                               | run twice against the development data plane, before and after the policy merge — **covers the case matrix only**; the document, storage and search policies added later are unverified |
-| Supabase security advisor            | 0 high/medium (8 INFO on `platform.*`, intentional) | before the later migrations; not re-run since                                                                                                                                           |
-| Supabase performance advisor         | 0 WARN after merging duplicate permissive policies  | same                                                                                                                                                                                    |
-| P30 load test                        | **RED** — aborted, filled the project's disk        | see `docs/performance.md`                                                                                                                                                               |
+| Gate                         | Result                   | Evidence                                                                                                            |
+| ---------------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Fast source gate             | GREEN                    | Release Gate #9: format, lint, typecheck, 165/165 unit tests, both Next.js builds, SQL guard.                       |
+| Migration replay             | GREEN                    | All migrations replayed from zero in disposable local Supabase.                                                     |
+| Authorization / RLS          | GREEN                    | Extended authorization matrix passed in disposable database.                                                        |
+| DB integrations              | GREEN                    | Runtime, branding/provisioning, worker runtime and tenant runtime isolation matrices passed.                        |
+| Playwright E2E               | GREEN                    | Production build/proxy E2E suite passed in Release Gate.                                                            |
+| Tenant runtime isolation     | GREEN (logic)            | Synthetic A/B host/deployment/auth/rate-limit matrix passed and rolled back; physical two-project gate still EB-02. |
+| Live db status               | GREEN                    | Tryggsignal live RPC reports ok=true, 10/10 queues, required RPCs present, RLS-unprotected tables=0.                |
+| Supabase security advisor    | GREEN with accepted WARN | 0 critical/high; only the two documented SECURITY DEFINER warnings for pre-auth resolve_tenant_host.                |
+| Supabase performance advisor | IN_PROGRESS              | No WARN/ERROR from current advisor result; INFO foreign-key/index findings will be workload-evaluated in P30.       |
+| Production deployment        | BLOCKED                  | Release workflow is ready, but intended Vercel domain topology/production tenant are not ready (EB-01/EB-02).       |
 
-**The development data plane is currently unavailable** (blocker B-01). Everything that
-needs the database is therefore unverifiable right now, including the advisors and the
-authorization matrix for the policies added after the case matrix run.
+## Live infrastructure truth
+
+- Supabase `Tryggsignal` is `ACTIVE_HEALTHY` in `eu-north-1`.
+- `demokommun` is the only control-plane fixture. It is DEV; its ACTIVE/HEALTHY deployment points back
+  to the same Tryggsignal Supabase project.
+- `demokommun.tryggsignal.se` remains PENDING/UNVERIFIED with DNS/TLS UNKNOWN. It is not a
+  production-ready tenant.
+- Marketing owns `tryggsignal.se` and `www.tryggsignal.se`.
+- The wildcard `*.tryggsignal.se` is still attached to `tryggsignal-platform-web-3eti`, not the intended
+  `tryggsignal-platform-web`.
+- There are not yet two physically separate municipality Supabase data planes. That is EB-02.
 
 ## Phases
 
-| Phase                               | Status           | Notes                                                                                                                                                                                                                                                                                                                            |
-| ----------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| P0 Discovery & Baseline             | GREEN            | `docs/baseline-report.md`                                                                                                                                                                                                                                                                                                        |
-| P1 Project Foundation               | GREEN            | workspace, TS strict, lint, format, Vitest, CI, SQL guard, env validation                                                                                                                                                                                                                                                        |
-| P2 Supabase Foundation              | GREEN            | 22 schemas, extensions, default-deny grants, migrations applied and committed                                                                                                                                                                                                                                                    |
-| P3 Organization / Identity          | GREEN            | hierarchy, `identity.users`, memberships, RLS                                                                                                                                                                                                                                                                                    |
-| P4 RBAC / ABAC / RLS                | GREEN            | 15 permissions, 18 roles, scoped assignments, `authz.can()`, audit hash chain, break glass; matrix GREEN                                                                                                                                                                                                                         |
-| P5 Case Core                        | GREEN            | canonical model, masterplan-50 indexes, RLS via `can()`                                                                                                                                                                                                                                                                          |
-| P6 Property Core                    | IN_PROGRESS      | properties, identifiers, addresses, buildings, spatial features, relations with PostGIS and provenance — RLS unverified since B-01                                                                                                                                                                                               |
-| P7 Document Engine                  | IN_PROGRESS      | documents, immutable versions, quarantine-first ingestion, buckets and Storage policies — malware scan missing (EB-08), policies unverified since B-01                                                                                                                                                                           |
-| P8 Workflow / Deadlines             | IN_PROGRESS      | schema and the explainable deadline calculator are done and unit-tested; the workflow runtime that advances instances is not built                                                                                                                                                                                               |
-| P9 Rule Engine                      | IN_PROGRESS      | deterministic engine with effective dating and evidence is implemented and tested; no municipal rule set has been authored                                                                                                                                                                                                       |
-| P10 Queues / Jobs                   | GREEN            | ten durable PGMQ queues, envelope contract, idempotency ledger, dead letters, run log, runnable worker with retries and graceful shutdown; `tests/integration/worker_runtime.sql` GREEN. Five job types are EXTERNAL_BLOCKED handlers that dead-letter with the blocker id rather than pretend (EB-03, EB-07, EB-08, EB-09, P25) |
-| P11 Search                          | IN_PROGRESS      | read model, tsvector/trigram indexes, scoped RLS policy, parameterized query builder; indexing pipeline not built                                                                                                                                                                                                                |
-| P12 Generic Integration Framework   | IN_PROGRESS      | contract, generic REST adapter, idempotency, field ownership, sync/event tables; SOAP, SFTP and SQL adapters are slots                                                                                                                                                                                                           |
-| P13 Migration Engine                | IN_PROGRESS      | raw capture, mapping, reconciliation implemented and tested; no golden dataset run                                                                                                                                                                                                                                               |
-| P14 National Source Registry        | IN_PROGRESS      | registry with licence, caching rights and freshness; cache-rights trigger enforced                                                                                                                                                                                                                                               |
-| P15 Lantmäteriet                    | EXTERNAL_BLOCKED | EB-03                                                                                                                                                                                                                                                                                                                            |
-| P16 Boverket                        | EXTERNAL_BLOCKED | `compliance.energy_declarations` ready; API key required                                                                                                                                                                                                                                                                         |
-| P17 Bolagsverket / Navet            | EXTERNAL_BLOCKED | EB-04                                                                                                                                                                                                                                                                                                                            |
-| P18 Digital Post / Identity         | EXTERNAL_BLOCKED | EB-05                                                                                                                                                                                                                                                                                                                            |
-| P19 Geodata Enrichment              | IN_PROGRESS      | `property.spatial_features` and the source registry are in place; no adapter built                                                                                                                                                                                                                                               |
-| P20 AI Foundation                   | IN_PROGRESS      | provider abstraction, prompt versioning, runs/findings/reviews, injection defence and scope guard all implemented and tested; no provider contracted (EB-07)                                                                                                                                                                     |
-| P21 Building Permit Workspace       | IN_PROGRESS      | case workspace and control tower render from the tenant data plane; blocked on auth for real data                                                                                                                                                                                                                                |
-| P22 Completeness Engine             | GREEN            | COMPLETE / INCOMPLETE / HUMAN_REVIEW with evidence, 13 tests including the undecidable case                                                                                                                                                                                                                                      |
-| P23 PBL Supervision                 | IN_PROGRESS      | inspections, findings and evidence schema; no supervision workflow                                                                                                                                                                                                                                                               |
-| P24 OVK                             | IN_PROGRESS      | obligations, obligation rules, compliance objects with next-due; no due-date computation job                                                                                                                                                                                                                                     |
-| P25 Archive / FGS                   | IN_PROGRESS      | retention, legal holds, packages, exports, disposition with approval constraint; no FGS writer                                                                                                                                                                                                                                   |
-| P26 ROI / Analytics                 | IN_PROGRESS      | metric and ROI event model with deadline-miss events emitted by the sweep; no rollup job                                                                                                                                                                                                                                         |
-| P27 Legacy Edge Connector           | IN_PROGRESS      | .NET outbound channel and envelope written but **never compiled** — no .NET SDK in this environment                                                                                                                                                                                                                              |
-| P28 First Real Vendor Connector     | EXTERNAL_BLOCKED | EB-06                                                                                                                                                                                                                                                                                                                            |
-| P29 Security Hardening              | IN_PROGRESS      | `docs/security/security-review.md` — 5 findings, 2 medium, both open and blocked on features that do not exist yet                                                                                                                                                                                                               |
-| P30 Performance                     | RED              | load test aborted and filled the disk; see `docs/performance.md`                                                                                                                                                                                                                                                                 |
-| P31 Backup / Recovery               | IN_PROGRESS      | runbook and RPO/RTO targets written; no restore drill has been performed                                                                                                                                                                                                                                                         |
-| P32 Accessibility                   | IN_PROGRESS      | contrast gate enforced and tested, semantic markup, skip link and heading order now verified end-to-end in a real browser (`tests/e2e/accessibility.spec.ts`); no screen-reader or axe run                                                                                                                                       |
-| P33 Pilot Readiness                 | IN_PROGRESS      | architecture, security, DPIA support, exit plan, SLA draft, API and integration catalogs, incident process, runbooks written                                                                                                                                                                                                     |
-| P34 Brand / Domain Foundation       | GREEN            | control-plane model with activation and contrast constraints                                                                                                                                                                                                                                                                     |
-| P35 Tenant Resolver                 | GREEN            | resolver, normalization, reserved hosts, `src/proxy.ts` (placement guarded by a test after it silently disabled routing in production); 33 unit tests                                                                                                                                                                            |
-| P36 White-label UI                  | IN_PROGRESS      | token model, WCAG validation, CSS variable rendering and admin view; editor, preview and publish flow not built                                                                                                                                                                                                                  |
-| P37 Custom Domains                  | EXTERNAL_BLOCKED | EB-01                                                                                                                                                                                                                                                                                                                            |
-| P38 Tenant Auth / Session Isolation | IN_PROGRESS      | host-bound cookie naming, per-tenant auth reference, data-plane binding; no login flow                                                                                                                                                                                                                                           |
-| P39 Tenant Provisioning             | IN_PROGRESS      | provisioning state machine and dev seed; no automated workflow                                                                                                                                                                                                                                                                   |
-| P40 Domain / White-label Hardening  | GREEN            | 20-case domain and cross-tenant matrix (masterplan 201–204) passing, plus security headers and CSP, plus a 15-test Playwright suite that runs the built proxy against a real control plane                                                                                                                                       |
+| Phase                               | Status           | Notes                                                                                                                                                                                                    |
+| ----------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Discovery & Baseline             | GREEN            | Baseline report exists and is current enough for implementation work.                                                                                                                                    |
+| P1 Project Foundation               | GREEN            | Strict TS workspace, lint/format/Vitest, SQL guard, CI and release gate are runnable.                                                                                                                    |
+| P2 Supabase Foundation              | GREEN            | Schemas/extensions/default-deny foundation; migrations now replay cleanly from an empty disposable Supabase database.                                                                                    |
+| P3 Organization / Identity          | GREEN            | Organization hierarchy, users and memberships with RLS.                                                                                                                                                  |
+| P4 RBAC / ABAC / RLS                | GREEN            | Permission/role model, authz.can(), audit chain and break-glass; extended authorization matrix GREEN.                                                                                                    |
+| P5 Case Core                        | GREEN            | Canonical case model, indexes and RLS.                                                                                                                                                                   |
+| P6 Property Core                    | IN_PROGRESS      | Property graph/provenance exists and replay/RLS gates pass; operational property UI remains in Phase G.                                                                                                  |
+| P7 Document Engine                  | IN_PROGRESS      | Immutable versions, quarantine-first model and Storage/RLS are verified; real upload + malware scan remains, EB-08.                                                                                      |
+| P8 Workflow / Deadlines             | GREEN            | Versioned runtime, transitions/tasks/timers and deadline calculator are implemented; runtime integration test GREEN.                                                                                     |
+| P9 Rule Engine                      | IN_PROGRESS      | Deterministic/effective-dated engine with evidence is tested; representative municipal ruleset still needed.                                                                                             |
+| P10 Queues / Jobs                   | GREEN            | Ten durable PGMQ queues, runnable worker, idempotency, retries, heartbeat, dead letters and run log; worker integration GREEN.                                                                           |
+| P11 Search                          | GREEN            | Scoped read model, query builder and trigger-maintained search index; RLS/runtime integration GREEN.                                                                                                     |
+| P12 Generic Integration Framework   | IN_PROGRESS      | REST contract/idempotency/ownership/reconciliation exist; file/SFTP/SQL-read and remaining transport adapters are not complete.                                                                          |
+| P13 Migration Engine                | IN_PROGRESS      | Raw capture, mapping and reconciliation exist; golden dataset run not completed.                                                                                                                         |
+| P14 National Source Registry        | IN_PROGRESS      | Source/licence/cache/freshness registry exists; no real national source is GREEN yet.                                                                                                                    |
+| P15 Lantmäteriet                    | EXTERNAL_BLOCKED | EB-03.                                                                                                                                                                                                   |
+| P16 Boverket                        | EXTERNAL_BLOCKED | Data model exists; real API access/adapter verification remains.                                                                                                                                         |
+| P17 Bolagsverket / Navet            | EXTERNAL_BLOCKED | EB-04.                                                                                                                                                                                                   |
+| P18 Digital Post / Identity         | EXTERNAL_BLOCKED | EB-05; Sweden Connect production access must not be fabricated.                                                                                                                                          |
+| P19 Geodata Enrichment              | IN_PROGRESS      | Spatial model/source registry exist; production adapter remains.                                                                                                                                         |
+| P20 AI Foundation                   | IN_PROGRESS      | Provider abstraction, prompt/run/finding/review and safety tests exist; real provider/DPA remains EB-07.                                                                                                 |
+| P21 Building Permit Workspace       | IN_PROGRESS      | Control tower/case workspace render through strict tenant data-plane binding; full operational case flow is Phase G.                                                                                     |
+| P22 Completeness Engine             | GREEN            | COMPLETE / INCOMPLETE / HUMAN_REVIEW with evidence is tested.                                                                                                                                            |
+| P23 PBL Supervision                 | IN_PROGRESS      | Schema/evidence model exists; complete supervision workflow remains.                                                                                                                                     |
+| P24 OVK                             | IN_PROGRESS      | Due-date recomputation is implemented and integration-tested; operational UI/flow remains.                                                                                                               |
+| P25 Archive / FGS                   | IN_PROGRESS      | Retention/legal hold/package/export models exist; FGS writer/validation remains.                                                                                                                         |
+| P26 ROI / Analytics                 | IN_PROGRESS      | Operational metrics rollup exists and integration test is GREEN; production analytics surface remains.                                                                                                   |
+| P27 Legacy Edge Connector           | IN_PROGRESS      | .NET connector source exists but has not yet passed dotnet restore/build/tests.                                                                                                                          |
+| P28 First Real Vendor Connector     | EXTERNAL_BLOCKED | EB-06.                                                                                                                                                                                                   |
+| P29 Security Hardening              | IN_PROGRESS      | No critical/high Supabase advisor finding; two intentional host-resolver WARNs documented. Full endpoint/pentest matrix remains.                                                                         |
+| P30 Performance                     | IN_PROGRESS      | Database recovered after prior load incident; earlier RLS defect fixed. Representative disposable-project load test is still required.                                                                   |
+| P31 Backup / Recovery               | IN_PROGRESS      | Runbook/RPO/RTO exist; DB + Storage restore drill not yet completed.                                                                                                                                     |
+| P32 Accessibility                   | IN_PROGRESS      | Structural Playwright/contrast checks pass; full WCAG 2.2 AA keyboard/focus/forms/zoom/screen-reader gate remains.                                                                                       |
+| P33 Pilot Readiness                 | IN_PROGRESS      | Procurement/runbook material exists; real pilot Global DoD not completed.                                                                                                                                |
+| P34 Brand / Domain Foundation       | GREEN            | Control-plane domain/branding model, activation and contrast constraints.                                                                                                                                |
+| P35 Tenant Resolver                 | GREEN            | Hostname normalization/reserved hosts/proxy placement and pre-auth narrow host RPC are verified.                                                                                                         |
+| P36 White-label UI                  | IN_PROGRESS      | Versioned branding publish/rollback DB functions and validation exist; real editor/asset/runtime branding product flow remains.                                                                          |
+| P37 Custom Domains                  | EXTERNAL_BLOCKED | Vercel projects exist, but wildcard is on the duplicate platform project; intended platform bindings, DNS/TLS/provider health remain EB-01.                                                              |
+| P38 Tenant Auth / Session Isolation | IN_PROGRESS      | Exact tenant runtime/auth config, password login, network token validation, host-only access+refresh cookies, refresh/logout and distributed login limiter implemented; Entra/SAML/OIDC runtime remains. |
+| P39 Tenant Provisioning             | IN_PROGRESS      | State machine/branding provisioning tests are GREEN; automated Supabase/domain orchestrator and real second data plane remain.                                                                           |
+| P40 Domain / White-label Hardening  | IN_PROGRESS      | Existing domain/E2E matrix is GREEN, but P40 cannot be GREEN before P36-P39 and two-real-data-plane isolation are complete.                                                                              |
 
-## Test suites and how to run them
+## Test suites
 
-| Suite                   | Command                                                     | What it covers                                                                                                                                                          |
-| ----------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit                    | `pnpm test`                                                 | 159 tests: rules, deadlines, authorization, resolver, envelope, retry, worker loop, branding, identity                                                                  |
-| End-to-end              | `pnpm test:e2e`                                             | 15 Playwright tests against a production build of `apps/platform-web`: hostname routing, platform isolation, header spoofing, security headers, accessibility structure |
-| RLS matrix              | `psql … -f tests/rls/authorization_matrix.sql`              | cross-tenant and cross-authority isolation, documents, search, uploads                                                                                                  |
-| Runtime                 | `psql … -f tests/integration/runtime.sql`                   | workflow engine, search index, OVK due dates, metrics rollup                                                                                                            |
-| Queue runtime           | `psql … -f tests/integration/worker_runtime.sql`            | enqueue, read, claim, complete, redelivery refusal, retry, heartbeat, dead-letter, run log                                                                              |
-| Branding / provisioning | `psql … -f tests/integration/branding_and_provisioning.sql` | branding publish and rollback, provisioning state machine                                                                                                               |
+| Suite                   | Command / file                                  | Verified scope                                                                               |
+| ----------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Unit                    | pnpm test                                       | 21 files / 165 tests GREEN.                                                                  |
+| End-to-end              | pnpm test:e2e                                   | Built platform proxy, routing/isolation/security headers/accessibility structure GREEN.      |
+| RLS matrix              | tests/rls/authorization_matrix.sql              | Cross-authority/tenant scope, cases, documents, search, uploads and audit controls.          |
+| Runtime                 | tests/integration/runtime.sql                   | Workflow, search indexing, OVK and metrics.                                                  |
+| Worker                  | tests/integration/worker_runtime.sql            | Queue delivery, claim/idempotency/retry/heartbeat/dead-letter/run log.                       |
+| Branding / provisioning | tests/integration/branding_and_provisioning.sql | Publish/rollback, provisioning state machine and offboarding safeguards.                     |
+| Tenant runtime          | tests/integration/tenant_runtime.sql            | Exact hostname/deployment/project/auth isolation plus distributed rate limiter.              |
+| Release gate            | .github/workflows/release.yml                   | Source verification + migration replay + SQL matrices + Playwright before production deploy. |
 
-The end-to-end suite runs the control-plane tests only when
-`CONTROL_PLANE_SUPABASE_URL` and `CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY` are set in the
-runner's environment; without them the directory resolves nothing and those assertions
-would pass for the wrong reason, so they skip rather than lie.
+## What is still required for MASTERPLAN V3 Global DoD
+
+The repository is not called complete just because CI and the release gate are green. The remaining
+ordered work is D → E → F → S → G → H → I → J → K → L → M → N → O → P → Q → T.
+
+Global DoD still requires, among other things:
+
+- two municipality data planes operating simultaneously with zero cross-tenant route/session/cache/data leak;
+- production domain verification/TLS and a real custom-domain lifecycle;
+- tenant provisioning/orchestration and complete white-label runtime;
+- one complete case flow without direct SQL;
+- required generic adapters and a golden migration dataset;
+- at least one real national integration and one real/representative municipal connector;
+- real AI provider only after provider/DPA decision;
+- FGS package validation;
+- full endpoint security hardening;
+- representative disposable-project load test;
+- real DB and Storage restore drill;
+- full WCAG 2.2 AA critical-flow gate;
+- a real pilot municipality and procurement/exit/support/offboarding verification.
+
+Only after those evidence gates pass may the masterplan be marked fully GREEN.

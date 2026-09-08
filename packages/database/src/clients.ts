@@ -39,11 +39,18 @@ export class DataPlaneMismatchError extends Error {
  * Masterplan 153/171: the host-resolved tenant context and the deployment record
  * must agree before any client is created. A mismatch is a hard failure, never a
  * fallback to a default project.
+ *
+ * The runtime resolver deliberately does not return privileged credential
+ * references, therefore only the identity fields needed for this assertion are
+ * required here.
  */
 export function assertDeploymentMatchesContext(
   context: TenantContext,
-  deployment: TenantDeploymentRecord,
+  deployment: Pick<TenantDeploymentRecord, 'id' | 'supabaseProjectRef'>,
 ): void {
+  if (context.deploymentId !== deployment.id) {
+    throw new DataPlaneMismatchError(context.deploymentId, deployment.id);
+  }
   if (context.dataPlaneReference !== deployment.supabaseProjectRef) {
     throw new DataPlaneMismatchError(context.dataPlaneReference, deployment.supabaseProjectRef);
   }

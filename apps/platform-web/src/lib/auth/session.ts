@@ -1,18 +1,22 @@
 import 'server-only';
-import { cookies } from 'next/headers';
-import { createClient } from '@supabase/supabase-js';
+
+import { headers, cookies } from 'next/headers';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import {
+  clearedRefreshSessionCookie,
   clearedSessionCookie,
   createSignInState,
+  refreshSessionCookie,
   sessionCookie,
   verifySignInState,
 } from '@tryggsignal/identity';
-import type { TenantContext } from '@tryggsignal/tenancy';
-
-/**
- * Masterplan 178–181: sign-in happens on the tenant's own host, against the
- * tenant's own data plane, and the resulting session cookie is host-bound.
- */
+import { tenantCookieName, type TenantContext } from '@tryggsignal/tenancy';
+import {
+  consumeDistributedRateLimit,
+  resolveTenantAuthConfiguration,
+  resolveTenantRuntime,
+  TenantRuntimeUnavailableError,
+} from '@/lib/tenant/runtime';
 
 export class AuthNotConfiguredError extends Error {
   constructor() {
@@ -28,13 +32,11 @@ export class SignInRejectedError extends Error {
   }
 }
 
-function dataPlane(): { url: string; key: string } {
-  // The tenant data plane is resolved from the deployment record; until the
-  // per-municipality projects exist (EB-02) this is the development plane.
-  const url = process.env.CONTROL_PLANE_SUPABASE_URL;
-  const key = process.env.CONTROL_PLANE_SUPABASE_PUBLISHABLE_KEY;
-  if (url === undefined || key === undefined) throw new AuthNotConfiguredError();
-  return { url, key };
+export class RateLimitRejectedError extends Error {
+  constructor(readonly resetAt: Date) {
+    super('Too many sign-in attempts.');
+    this.name = 'RateLimitRejectedError';
+  }
 }
 
 function stateSecret(): string {
@@ -43,6 +45,75 @@ function stateSecret(): string {
     throw new AuthNotConfiguredError();
   }
   return secret;
+}
+
+function authClient(target: { url: string; publishableKey: string }): SupabaseClient {
+  return createClient(target.url, target.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+async function requirePasswordRuntime(context: TenantContext): Promise<{
+  readonly url: string;
+  readonly publishableKey: string;
+}> {
+  try {
+    const [deployment, configuration] = await Promise.all([
+      resolveTenantRuntime(context),
+      resolveTenantAuthConfiguration(context, 'STAFF'),
+    ]);
+
+    if (configuration.kind !== 'SUPABASE_PASSWORD') {
+      throw new AuthNotConfiguredError();
+    }
+
+    return {
+      url: deployment.supabaseUrl,
+      publishableKey: deployment.publishableKey,
+    };
+  } catch (error) {
+    if (error instanceof AuthNotConfiguredError) throw error;
+    if (error instanceof TenantRuntimeUnavailableError) throw new AuthNotConfiguredError();
+    throw error;
+  }
+}
+
+async function internalUserIsActive(client: SupabaseClient, authUserId: string): Promise<boolean> {
+  const { data, error } = await client
+    .schema('identity')
+    .from('users')
+    .select('id, status')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle<{ id: string; status: string }>();
+
+  return error === null && data !== null && data.status === 'ACTIVE';
+}
+
+async function clientAddress(): Promise<string> {
+  const store = await headers();
+  const forwardedFor = store.get('x-forwarded-for');
+  return forwardedFor?.split(',')[0]?.trim() ?? 'unknown';
+}
+
+async function writeSessionCookies(
+  context: TenantContext,
+  accessToken: string,
+  refreshToken: string,
+  expiresIn: number,
+): Promise<void> {
+  const store = await cookies();
+  const access = sessionCookie(context, accessToken, expiresIn);
+  const refresh = refreshSessionCookie(context, refreshToken);
+  store.set(access.name, access.value, access.options);
+  store.set(refresh.name, refresh.value, refresh.options);
+}
+
+export async function clearSessionCookies(context: TenantContext): Promise<void> {
+  const store = await cookies();
+  const access = clearedSessionCookie(context);
+  const refresh = clearedRefreshSessionCookie(context);
+  store.set(access.name, access.value, access.options);
+  store.set(refresh.name, refresh.value, refresh.options);
 }
 
 export function issueSignInState(context: TenantContext, returnTo: string): string {
@@ -54,54 +125,131 @@ export function checkSignInState(context: TenantContext, state: string): string 
 }
 
 /**
- * Exchanges credentials for a session and stores it in the host-bound cookie.
- * The internal user must already exist and be ACTIVE: a valid token from the
- * identity provider is not by itself permission to work in a municipality
- * (masterplan 14).
+ * Password auth is only accepted when the tenant's resolved STAFF auth
+ * configuration explicitly says SUPABASE_PASSWORD. It never falls back to the
+ * control-plane project or to a global auth provider.
  */
 export async function signInWithPassword(
   context: TenantContext,
   email: string,
   password: string,
 ): Promise<void> {
-  const { url, key } = dataPlane();
-  const client = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  let rateLimit;
+  try {
+    rateLimit = await consumeDistributedRateLimit(context, 'auth', await clientAddress());
+  } catch (error) {
+    if (error instanceof TenantRuntimeUnavailableError) throw new AuthNotConfiguredError();
+    throw error;
+  }
+  if (!rateLimit.allowed) throw new RateLimitRejectedError(rateLimit.resetAt);
+
+  const target = await requirePasswordRuntime(context);
+  const client = authClient(target);
 
   const { data, error } = await client.auth.signInWithPassword({ email, password });
-  if (error !== null || data.session === null) {
-    // Deliberately unspecific: the response must not reveal whether the address
-    // exists in this municipality.
+  if (error !== null || data.session === null || data.user === null) {
     throw new SignInRejectedError('Fel e-postadress eller lösenord.');
   }
 
-  const authed = createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
+  const authed = createClient(target.url, target.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
   });
 
-  const { data: internalUser } = await authed
-    .schema('identity')
-    .from('users')
-    .select('id, status')
-    .eq('auth_user_id', data.user?.id ?? '')
-    .maybeSingle<{ id: string; status: string }>();
-
-  if (internalUser === null || internalUser.status !== 'ACTIVE') {
-    await client.auth.signOut();
+  if (!(await internalUserIsActive(authed, data.user.id))) {
+    await client.auth.signOut({ scope: 'local' });
     throw new SignInRejectedError(
       'Kontot är inte upplagt för den här kommunen. Kontakta din administratör.',
     );
   }
 
-  const cookie = sessionCookie(context, data.session.access_token, data.session.expires_in);
+  await writeSessionCookies(
+    context,
+    data.session.access_token,
+    data.session.refresh_token,
+    data.session.expires_in,
+  );
+}
+
+/**
+ * Refresh is executed from a Route Handler, where cookie writes are legal.
+ * Refresh-token rotation is persisted immediately.
+ */
+export async function refreshSession(context: TenantContext): Promise<boolean> {
+  let deployment;
+  try {
+    deployment = await resolveTenantRuntime(context);
+  } catch {
+    await clearSessionCookies(context);
+    return false;
+  }
+
   const store = await cookies();
-  store.set(cookie.name, cookie.value, cookie.options);
+  const refreshToken = store.get(tenantCookieName(context, 'refresh'))?.value;
+  if (refreshToken === undefined || refreshToken.length === 0) {
+    await clearSessionCookies(context);
+    return false;
+  }
+
+  const client = authClient({
+    url: deployment.supabaseUrl,
+    publishableKey: deployment.publishableKey,
+  });
+  const { data, error } = await client.auth.refreshSession({ refresh_token: refreshToken });
+  if (error !== null || data.session === null || data.user === null) {
+    await clearSessionCookies(context);
+    return false;
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await client.auth.getUser(data.session.access_token);
+
+  if (
+    userError !== null ||
+    user === null ||
+    !(await internalUserIsActive(
+      createClient(deployment.supabaseUrl, deployment.publishableKey, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
+      }),
+      user.id,
+    ))
+  ) {
+    await client.auth.signOut({ scope: 'local' });
+    await clearSessionCookies(context);
+    return false;
+  }
+
+  await writeSessionCookies(
+    context,
+    data.session.access_token,
+    data.session.refresh_token,
+    data.session.expires_in,
+  );
+  return true;
 }
 
 export async function signOut(context: TenantContext): Promise<void> {
-  const cookie = clearedSessionCookie(context);
-  const store = await cookies();
-  store.set(cookie.name, cookie.value, cookie.options);
+  try {
+    const deployment = await resolveTenantRuntime(context);
+    const store = await cookies();
+    const accessToken = store.get(tenantCookieName(context, 'session'))?.value;
+    const refreshToken = store.get(tenantCookieName(context, 'refresh'))?.value;
+
+    if (accessToken !== undefined && refreshToken !== undefined) {
+      const client = authClient({
+        url: deployment.supabaseUrl,
+        publishableKey: deployment.publishableKey,
+      });
+      const { error } = await client.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error === null) await client.auth.signOut({ scope: 'local' });
+    }
+  } finally {
+    await clearSessionCookies(context);
+  }
 }
