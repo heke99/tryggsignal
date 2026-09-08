@@ -389,7 +389,14 @@ export default async function CaseWorkspacePage({
 
             <div className="form-field form-field-wide">
               <label htmlFor="newPartyName">Namn</label>
-              <input id="newPartyName" name="displayName" type="text" minLength={2} maxLength={200} required />
+              <input
+                id="newPartyName"
+                name="displayName"
+                type="text"
+                minLength={2}
+                maxLength={200}
+                required
+              />
             </div>
 
             <div className="form-field">
@@ -411,9 +418,7 @@ export default async function CaseWorkspacePage({
             <div className="form-field">
               <label htmlFor="newPartyPersonRef">Personreferens</label>
               <input id="newPartyPersonRef" name="personReference" type="text" maxLength={200} />
-              <p className="field-help">
-                Används endast för Person. Personnummer lagras inte här.
-              </p>
+              <p className="field-help">Används endast för Person. Personnummer lagras inte här.</p>
             </div>
 
             <div className="form-actions form-field-wide">
