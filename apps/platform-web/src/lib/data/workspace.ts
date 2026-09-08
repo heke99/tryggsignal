@@ -889,6 +889,220 @@ export async function loadCaseCompleteness(
   };
 }
 
+export interface CaseReferralRecipient {
+  readonly id: string;
+  readonly partyId: string | null;
+  readonly displayName: string;
+  readonly contactAddress: string | null;
+  readonly status: string;
+  readonly sentAt: string | null;
+  readonly remindedAt: string | null;
+  readonly delivery: {
+    id: string;
+    channel: string;
+    status: string;
+    sentAt: string | null;
+    deliveredAt: string | null;
+    failedReason: string | null;
+    externalReference: string | null;
+  } | null;
+  readonly response: {
+    id: string;
+    position: string | null;
+    responseText: string | null;
+    documentId: string | null;
+    receivedAt: string;
+  } | null;
+}
+
+export interface CaseReferral {
+  readonly id: string;
+  readonly subject: string;
+  readonly description: string | null;
+  readonly status: string;
+  readonly dueAt: string;
+  readonly queuedAt: string | null;
+  readonly sentAt: string | null;
+  readonly reminderAt: string | null;
+  readonly lastFollowupAt: string | null;
+  readonly recipients: readonly CaseReferralRecipient[];
+}
+
+export async function loadCaseReferrals(
+  context: TenantContext,
+  caseId: string,
+): Promise<readonly CaseReferral[]> {
+  const session = await tenantClient(context);
+  if (!session.authenticated) return [];
+
+  const referrals = await session.client
+    .schema('referral')
+    .from('referrals')
+    .select(
+      'id, subject, description, status, due_at, queued_at, sent_at, reminder_at, last_followup_at, created_at',
+    )
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: false });
+
+  const referralRows = (referrals.data ?? []) as Array<{
+    id: string;
+    subject: string;
+    description: string | null;
+    status: string;
+    due_at: string;
+    queued_at: string | null;
+    sent_at: string | null;
+    reminder_at: string | null;
+    last_followup_at: string | null;
+    created_at: string;
+  }>;
+
+  const referralIds = referralRows.map((row) => row.id);
+  if (referralIds.length === 0) return [];
+
+  const recipientsResult = await session.client
+    .schema('referral')
+    .from('referral_recipients')
+    .select(
+      'id, referral_id, party_id, organization_name, contact_address, sent_at, reminded_at, status, delivery_id',
+    )
+    .in('referral_id', referralIds);
+
+  const recipientRows = (recipientsResult.data ?? []) as Array<{
+    id: string;
+    referral_id: string;
+    party_id: string | null;
+    organization_name: string | null;
+    contact_address: string | null;
+    sent_at: string | null;
+    reminded_at: string | null;
+    status: string;
+    delivery_id: string | null;
+  }>;
+
+  const partyIds = Array.from(
+    new Set(
+      recipientRows.map((row) => row.party_id).filter((value): value is string => value !== null),
+    ),
+  );
+  const deliveryIds = Array.from(
+    new Set(
+      recipientRows
+        .map((row) => row.delivery_id)
+        .filter((value): value is string => value !== null),
+    ),
+  );
+
+  const [partiesResult, deliveriesResult, responsesResult] = await Promise.all([
+    partyIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : session.client.schema('core').from('parties').select('id, display_name').in('id', partyIds),
+    deliveryIds.length === 0
+      ? Promise.resolve({ data: [] })
+      : session.client
+          .schema('communication')
+          .from('deliveries')
+          .select('id, channel, status, sent_at, delivered_at, failed_reason, external_reference')
+          .in('id', deliveryIds),
+    session.client
+      .schema('referral')
+      .from('referral_responses')
+      .select('id, recipient_id, document_id, response_text, position, received_at')
+      .in('referral_id', referralIds),
+  ]);
+
+  const partyById = new Map(
+    ((partiesResult.data ?? []) as Array<{ id: string; display_name: string }>).map((party) => [
+      party.id,
+      party.display_name,
+    ]),
+  );
+  const deliveryById = new Map(
+    (
+      (deliveriesResult.data ?? []) as Array<{
+        id: string;
+        channel: string;
+        status: string;
+        sent_at: string | null;
+        delivered_at: string | null;
+        failed_reason: string | null;
+        external_reference: string | null;
+      }>
+    ).map((delivery) => [delivery.id, delivery] as const),
+  );
+  const responseByRecipient = new Map(
+    (
+      (responsesResult.data ?? []) as Array<{
+        id: string;
+        recipient_id: string | null;
+        document_id: string | null;
+        response_text: string | null;
+        position: string | null;
+        received_at: string;
+      }>
+    )
+      .filter(
+        (response): response is typeof response & { recipient_id: string } =>
+          response.recipient_id !== null,
+      )
+      .map((response) => [response.recipient_id, response] as const),
+  );
+
+  return referralRows.map((referral) => ({
+    id: referral.id,
+    subject: referral.subject,
+    description: referral.description,
+    status: referral.status,
+    dueAt: referral.due_at,
+    queuedAt: referral.queued_at,
+    sentAt: referral.sent_at,
+    reminderAt: referral.reminder_at,
+    lastFollowupAt: referral.last_followup_at,
+    recipients: recipientRows
+      .filter((recipient) => recipient.referral_id === referral.id)
+      .map((recipient) => {
+        const delivery =
+          recipient.delivery_id === null ? undefined : deliveryById.get(recipient.delivery_id);
+        const response = responseByRecipient.get(recipient.id);
+
+        return {
+          id: recipient.id,
+          partyId: recipient.party_id,
+          displayName:
+            (recipient.party_id === null ? null : partyById.get(recipient.party_id)) ??
+            recipient.organization_name ??
+            'Extern mottagare',
+          contactAddress: recipient.contact_address,
+          status: recipient.status,
+          sentAt: recipient.sent_at,
+          remindedAt: recipient.reminded_at,
+          delivery:
+            delivery === undefined
+              ? null
+              : {
+                  id: delivery.id,
+                  channel: delivery.channel,
+                  status: delivery.status,
+                  sentAt: delivery.sent_at,
+                  deliveredAt: delivery.delivered_at,
+                  failedReason: delivery.failed_reason,
+                  externalReference: delivery.external_reference,
+                },
+          response:
+            response === undefined
+              ? null
+              : {
+                  id: response.id,
+                  position: response.position,
+                  responseText: response.response_text,
+                  documentId: response.document_id,
+                  receivedAt: response.received_at,
+                },
+        };
+      }),
+  }));
+}
+
 export interface CaseCreationOptions {
   readonly available: boolean;
   readonly reason?: string;
