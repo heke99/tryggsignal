@@ -137,7 +137,7 @@ end;
 $$;
 
 -- 7. Cross-tenant branding assets are refused even through privileged writes.
-do $
+do $$
 declare
   v_other_tenant uuid;
   v_other_asset uuid;
@@ -174,10 +174,10 @@ begin
     raise exception 'Cross-tenant branding asset was accepted';
   end if;
 end;
-$;
+$$;
 
 -- 8. Branding service RPCs are not client APIs.
-do $
+do $$
 begin
   if has_function_privilege(
     'authenticated',
@@ -195,7 +195,7 @@ begin
     raise exception 'service_role cannot execute branding resolver';
   end if;
 end;
-$;
+$$;
 
 -- 9. Offboarding disables the domains and records a tombstone (masterplan 167/194).
 do $$
