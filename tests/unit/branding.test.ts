@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { brandingCssVariableMap, brandingCssVariables, contrastRatio, validateBranding } from '@tryggsignal/tenancy';
+import {
+  brandingCssVariableMap,
+  brandingCssVariables,
+  contrastRatio,
+  validateBranding,
+} from '@tryggsignal/tenancy';
 
 const base = {
   displayName: 'Mjölby kommun',
@@ -55,6 +60,7 @@ describe('branding validation (masterplan 152–154)', () => {
     expect(css).toContain('--ts-secondary: #1f2937;');
     expect(css).not.toContain('not-a-color');
   });
+
   it('emits a renderer-safe custom property map', () => {
     expect(brandingCssVariableMap({ ...base, secondaryColor: '#1f2937' })).toEqual({
       '--ts-primary': '#14532d',
