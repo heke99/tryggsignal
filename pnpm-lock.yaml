@@ -191,6 +191,9 @@ importers:
       '@tryggsignal/domain':
         specifier: workspace:*
         version: link:../domain
+      '@tryggsignal/tenancy':
+        specifier: workspace:*
+        version: link:../tenancy
 
   packages/marketing:
     dependencies:
