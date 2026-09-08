@@ -309,6 +309,111 @@ grant execute on function workflow.advance_case_for_user(uuid, text, text) to au
 -- it private to internal database code and tests.
 revoke execute on function workflow.advance(uuid, text, text, text) from authenticated;
 
+-- P8 originally checked USER transitions with authority-only case.update scope.
+-- That rejects a legitimate department-scoped caseworker. Keep the primitive
+-- private, but make its internal USER check identical to the case ABAC boundary
+-- so wrapper and primitive cannot drift.
+create or replace function workflow.advance(
+  p_instance_id uuid,
+  p_to_state text,
+  p_reason text default null,
+  p_trigger_type text default 'USER'
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_instance workflow.workflow_instances%rowtype;
+  v_case core.cases%rowtype;
+  v_definition jsonb;
+  v_allowed jsonb;
+  v_actor uuid := (select authz.current_user_id());
+  v_decision jsonb;
+begin
+  select * into v_instance
+  from workflow.workflow_instances i
+  where i.id = p_instance_id
+  for update;
+
+  if not found then
+    raise exception 'Unknown workflow instance %', p_instance_id using errcode = 'no_data_found';
+  end if;
+  if v_instance.status <> 'RUNNING' then
+    raise exception 'Workflow instance is % and cannot be advanced', v_instance.status
+      using errcode = 'raise_exception';
+  end if;
+
+  select * into v_case from core.cases c where c.id = v_instance.case_id;
+
+  if p_trigger_type = 'USER' then
+    v_decision := authz.can('case.update', jsonb_build_object(
+      'authority_id', v_case.authority_id,
+      'department_id', v_case.department_id,
+      'assigned_user_id', v_case.assigned_user_id,
+      'assigned_team_id', v_case.assigned_team_id,
+      'information_class', v_case.information_class
+    ));
+    if not coalesce((v_decision->>'allowed')::boolean, false) then
+      raise exception 'Not permitted to advance this case'
+        using errcode = 'insufficient_privilege';
+    end if;
+  end if;
+
+  select v.definition into v_definition
+  from workflow.workflow_template_versions v where v.id = v_instance.template_version_id;
+
+  v_allowed := v_definition->'states'->v_instance.current_state->'to';
+  if v_allowed is null or not (v_allowed ? p_to_state) then
+    raise exception 'Transition % -> % is not declared by this workflow version',
+      v_instance.current_state, p_to_state using errcode = 'raise_exception';
+  end if;
+
+  insert into workflow.workflow_transitions (
+    instance_id, authority_id, from_state, to_state, triggered_by, trigger_type, reason
+  )
+  values (
+    p_instance_id, v_instance.authority_id, v_instance.current_state, p_to_state,
+    v_actor, p_trigger_type, p_reason
+  );
+
+  update workflow.workflow_instances
+  set current_state = p_to_state,
+      status = case
+        when coalesce((v_definition->'states'->p_to_state->>'final')::boolean, false)
+          then 'COMPLETED'
+        else status
+      end,
+      completed_at = case
+        when coalesce((v_definition->'states'->p_to_state->>'final')::boolean, false)
+          then now()
+        else completed_at
+      end
+  where id = p_instance_id;
+
+  update workflow.workflow_timers
+  set cancelled_at = now()
+  where instance_id = p_instance_id
+    and fired_at is null
+    and cancelled_at is null;
+
+  perform workflow.materialize_state(p_instance_id);
+
+  insert into reporting.roi_events (
+    authority_id, case_id, event_type, phase, actor, detail
+  )
+  values (
+    v_instance.authority_id, v_instance.case_id, 'PHASE_COMPLETED',
+    v_instance.current_state, v_actor,
+    jsonb_build_object('to_state', p_to_state, 'trigger', p_trigger_type)
+  );
+end;
+$;
+
+revoke all on function workflow.advance(uuid, text, text, text) from public;
+revoke all on function workflow.advance(uuid, text, text, text) from anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- Pause/resume. Statutory deadlines are deliberately NOT changed here: legal
 -- deadline suspension is a separate, explainable rule and must never be inferred
@@ -573,6 +678,18 @@ begin
       using errcode = 'foreign_key_violation';
   end if;
 
+  -- Authorization precedes configuration lookup so an unauthorized caller
+  -- cannot use this command to enumerate another authority's workflow catalog.
+  v_decision := authz.can('case.create', jsonb_build_object(
+    'authority_id', p_authority_id,
+    'department_id', p_department_id,
+    'information_class', 'INTERNAL'
+  ));
+  if not coalesce((v_decision->>'allowed')::boolean, false) then
+    raise exception 'Not permitted to create a case in this scope'
+      using errcode = 'insufficient_privilege';
+  end if;
+
   if not exists (
     select 1
     from workflow.workflow_templates t
@@ -587,16 +704,6 @@ begin
     raise exception 'No published workflow "%" matches process type "%" in this authority',
       trim(p_template_key), trim(p_process_type)
       using errcode = 'no_data_found';
-  end if;
-
-  v_decision := authz.can('case.create', jsonb_build_object(
-    'authority_id', p_authority_id,
-    'department_id', p_department_id,
-    'information_class', 'INTERNAL'
-  ));
-  if not coalesce((v_decision->>'allowed')::boolean, false) then
-    raise exception 'Not permitted to create a case in this scope'
-      using errcode = 'insufficient_privilege';
   end if;
 
   insert into core.cases (
