@@ -696,3 +696,239 @@ create policy "tryggsignal prepared uploads land in quarantine only"
         and documents.can_upload_document(d.id)
     )
   );
+
+
+-- ---------------------------------------------------------------------------
+-- Scanner-neutral processing boundary. Production uses a dedicated SERVICE
+-- account for Storage reads and the native worker DB role for state changes.
+-- ---------------------------------------------------------------------------
+
+alter table documents.document_versions
+  add column scanner_provider text,
+  add column scanner_version text,
+  add column signature_version text,
+  add column scan_started_at timestamptz,
+  add column scan_result text
+    check (scan_result is null or scan_result in ('CLEAN', 'INFECTED', 'ERROR')),
+  add column threat_name text;
+
+insert into authz.permissions (key, name)
+values ('document.scan', 'Scan quarantined document bytes')
+on conflict (key) do nothing;
+
+insert into authz.role_permissions (role_id, permission_id)
+select r.id, p.id
+from authz.roles r
+join authz.permissions p on p.key = 'document.scan'
+where r.key = 'integration_service'
+on conflict do nothing;
+
+create or replace function documents.can_scan_document(p_document_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from documents.documents d
+    join identity.users u on u.id = (select authz.current_user_id())
+    where d.id = p_document_id
+      and u.user_type = 'SERVICE'
+      and authz.has_permission('document.scan', d.authority_id, d.department_id, null)
+  )
+$$;
+
+revoke all on function documents.can_scan_document(uuid) from public;
+grant execute on function documents.can_scan_document(uuid) to authenticated;
+
+create policy "tryggsignal scanner reads prepared quarantine"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'quarantine'
+    and documents.storage_authority(name) is not null
+    and documents.storage_document_id(name) is not null
+    and exists (
+      select 1
+      from documents.document_versions v
+      join documents.documents d on d.id = v.document_id
+      where d.id = documents.storage_document_id(storage.objects.name)
+        and d.authority_id = documents.storage_authority(storage.objects.name)
+        and v.document_id = d.id
+        and v.version = documents.storage_version_number(storage.objects.name)
+        and v.storage_bucket = storage.objects.bucket_id
+        and v.storage_path = storage.objects.name
+        and v.ingestion_status in ('QUARANTINED', 'VALIDATING', 'SCANNING')
+        and documents.can_scan_document(d.id)
+    )
+  );
+
+create or replace function documents.worker_claim_document_processing(
+  p_document_version_id uuid
+)
+returns table (
+  document_version_id uuid,
+  document_id uuid,
+  case_id uuid,
+  authority_id uuid,
+  storage_bucket text,
+  storage_path text,
+  expected_sha256 text,
+  declared_mime_type text,
+  size_bytes bigint
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_version documents.document_versions%rowtype;
+  v_document documents.documents%rowtype;
+begin
+  select * into v_version
+  from documents.document_versions v
+  where v.id = p_document_version_id
+  for update;
+
+  if not found then
+    raise exception 'Unknown document version %', p_document_version_id
+      using errcode = 'no_data_found';
+  end if;
+
+  select * into v_document
+  from documents.documents d
+  where d.id = v_version.document_id;
+
+  if v_document.case_id is null
+     or v_version.upload_confirmed_at is null
+     or v_version.processing_enqueued_at is null then
+    raise exception 'Document version is not ready for processing'
+      using errcode = 'object_not_in_prerequisite_state';
+  end if;
+
+  if v_version.ingestion_status in ('CLEAN', 'REJECTED') then
+    return;
+  end if;
+
+  update documents.document_versions
+  set ingestion_status = 'SCANNING',
+      scan_started_at = coalesce(scan_started_at, now()),
+      scan_result = null,
+      threat_name = null,
+      rejection_reason = null
+  where id = v_version.id;
+
+  return query
+  select
+    v_version.id,
+    v_version.document_id,
+    v_document.case_id,
+    v_version.authority_id,
+    v_version.storage_bucket,
+    v_version.storage_path,
+    v_version.sha256,
+    v_version.mime_type,
+    v_version.size_bytes;
+end;
+$$;
+
+revoke all on function documents.worker_claim_document_processing(uuid) from public;
+
+create or replace function documents.worker_complete_document_processing(
+  p_document_version_id uuid,
+  p_outcome text,
+  p_detected_mime_type text,
+  p_scanner_provider text,
+  p_scanner_version text,
+  p_signature_version text,
+  p_threat_name text default null,
+  p_reason text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_version documents.document_versions%rowtype;
+  v_document documents.documents%rowtype;
+  v_case_id uuid;
+  v_outcome text := upper(trim(coalesce(p_outcome, '')));
+  v_reason text := nullif(left(trim(coalesce(p_reason, '')), 2000), '');
+begin
+  if v_outcome not in ('CLEAN', 'INFECTED', 'ERROR') then
+    raise exception 'Unsupported scanner outcome %', v_outcome
+      using errcode = 'check_violation';
+  end if;
+
+  select * into v_version
+  from documents.document_versions v
+  where v.id = p_document_version_id
+  for update;
+
+  if not found then
+    raise exception 'Unknown document version %', p_document_version_id
+      using errcode = 'no_data_found';
+  end if;
+
+  if v_version.ingestion_status in ('CLEAN', 'REJECTED') then
+    return;
+  end if;
+
+  select * into v_document
+  from documents.documents d
+  where d.id = v_version.document_id;
+
+  v_case_id := v_document.case_id;
+
+  update documents.document_versions
+  set detected_mime_type = nullif(trim(p_detected_mime_type), ''),
+      scanner_provider = nullif(trim(p_scanner_provider), ''),
+      scanner_version = nullif(trim(p_scanner_version), ''),
+      signature_version = nullif(trim(p_signature_version), ''),
+      scanned_at = now(),
+      scan_result = v_outcome,
+      threat_name = case when v_outcome = 'INFECTED'
+        then nullif(left(trim(coalesce(p_threat_name, 'Unknown threat')), 500), '')
+        else null
+      end,
+      rejection_reason = case
+        when v_outcome = 'CLEAN' then null
+        else coalesce(v_reason, case
+          when v_outcome = 'INFECTED' then 'Malware scanner rejected the file'
+          else 'Malware scanner failed'
+        end)
+      end,
+      ingestion_status = case
+        when v_outcome = 'CLEAN' then 'CLEAN'
+        when v_outcome = 'INFECTED' then 'REJECTED'
+        else 'FAILED'
+      end
+  where id = v_version.id;
+
+  if v_case_id is not null then
+    perform audit.record(
+      case
+        when v_outcome = 'CLEAN' then 'case.document.scan_clean'
+        when v_outcome = 'INFECTED' then 'case.document.scan_rejected'
+        else 'case.document.scan_failed'
+      end,
+      'case',
+      v_case_id,
+      v_version.authority_id,
+      format(
+        'Document %s version %s scanner outcome %s via %s',
+        v_document.id,
+        v_version.version,
+        v_outcome,
+        coalesce(nullif(trim(p_scanner_provider), ''), 'unknown')
+      )
+    );
+  end if;
+end;
+$$;
+
+revoke all on function documents.worker_complete_document_processing(
+  uuid, text, text, text, text, text, text, text
+) from public;
