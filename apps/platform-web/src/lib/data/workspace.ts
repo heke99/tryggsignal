@@ -178,7 +178,9 @@ function transitionTargets(definition: unknown, currentState: string): readonly 
   if (typeof definition !== 'object' || definition === null) return [];
   const states = (definition as WorkflowDefinition).states;
   const state = states?.[currentState];
-  return Array.isArray(state?.to) ? state.to.filter((value): value is string => typeof value === 'string') : [];
+  return Array.isArray(state?.to)
+    ? state.to.filter((value): value is string => typeof value === 'string')
+    : [];
 }
 
 export async function loadCaseWorkspace(
@@ -287,7 +289,7 @@ export async function loadCaseWorkspace(
   const assignees =
     userIds.length === 0
       ? []
-      : (
+      : ((
           await session.client
             .schema('identity')
             .from('users')
@@ -295,7 +297,7 @@ export async function loadCaseWorkspace(
             .in('id', userIds)
             .eq('status', 'ACTIVE')
             .order('display_name', { ascending: true })
-        ).data ?? [];
+        ).data ?? []);
 
   let workflow: CaseWorkflow | null = null;
 
