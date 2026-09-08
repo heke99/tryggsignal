@@ -228,6 +228,63 @@ grant execute on function documents.set_portal_visibility_for_user(uuid, boolean
 -- External communication visibility and inbound portal messages
 -- ---------------------------------------------------------------------------
 
+create or replace function communication.external_can_read_portal_message(
+  p_message_id uuid,
+  p_case_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1
+    from communication.deliveries d
+    join core.case_parties cp on cp.party_id = d.recipient_party_id
+    where d.message_id = p_message_id
+      and d.channel = 'PORTAL'
+      and d.status in ('SENT', 'DELIVERED', 'READ')
+      and cp.case_id = p_case_id
+      and cp.identity_user_id = (select authz.current_user_id())
+      and cp.verified_at is not null
+  )
+$;
+
+create or replace function communication.external_can_read_portal_delivery(
+  p_delivery_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1
+    from communication.deliveries d
+    join communication.messages m on m.id = d.message_id
+    join core.case_parties cp on cp.party_id = d.recipient_party_id
+    where d.id = p_delivery_id
+      and d.channel = 'PORTAL'
+      and d.status in ('SENT', 'DELIVERED', 'READ')
+      and m.case_id is not null
+      and m.information_class in ('PUBLIC', 'INTERNAL')
+      and cp.case_id = m.case_id
+      and cp.identity_user_id = (select authz.current_user_id())
+      and cp.verified_at is not null
+  )
+$;
+
+revoke all on function communication.external_can_read_portal_message(uuid, uuid)
+  from public, anon;
+revoke all on function communication.external_can_read_portal_delivery(uuid)
+  from public, anon;
+grant execute on function communication.external_can_read_portal_message(uuid, uuid)
+  to authenticated;
+grant execute on function communication.external_can_read_portal_delivery(uuid)
+  to authenticated;
+
 drop policy if exists messages_select on communication.messages;
 create policy messages_select on communication.messages
   for select to authenticated
@@ -242,17 +299,7 @@ create policy messages_select on communication.messages
           or
           (
             direction = 'OUTBOUND'
-            and exists (
-              select 1
-              from communication.deliveries d
-              join core.case_parties cp on cp.party_id = d.recipient_party_id
-              where d.message_id = messages.id
-                and d.channel = 'PORTAL'
-                and d.status in ('SENT', 'DELIVERED', 'READ')
-                and cp.case_id = messages.case_id
-                and cp.identity_user_id = (select authz.current_user_id())
-                and cp.verified_at is not null
-            )
+            and communication.external_can_read_portal_message(messages.id, messages.case_id)
           )
         )
       else
@@ -272,15 +319,7 @@ create policy deliveries_select on communication.deliveries
       when authz.is_external_user() then
         channel = 'PORTAL'
         and status in ('SENT', 'DELIVERED', 'READ')
-        and exists (
-          select 1
-          from communication.messages m
-          join core.case_parties cp on cp.party_id = deliveries.recipient_party_id
-          where m.id = deliveries.message_id
-            and cp.case_id = m.case_id
-            and cp.identity_user_id = (select authz.current_user_id())
-            and cp.verified_at is not null
-        )
+        and communication.external_can_read_portal_delivery(deliveries.id)
       else
         exists (select 1 from communication.messages m where m.id = deliveries.message_id)
     end
