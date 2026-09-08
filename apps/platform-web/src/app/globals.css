@@ -268,6 +268,41 @@ button,
   font-weight: 650;
 }
 
+.entity-list {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.entity-item {
+  border-top: 1px solid var(--ts-border);
+  padding-top: 1rem;
+}
+
+.entity-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.entity-heading h3 {
+  margin: 0;
+}
+
+.compact-details {
+  margin: 0.75rem 0;
+}
+
+details > summary {
+  cursor: pointer;
+  font-weight: 650;
+  margin-bottom: 0.75rem;
+}
+
+.create-panel {
+  border-top: 1px solid var(--ts-border);
+  padding-top: 1rem;
+}
+
 .action-list {
   display: grid;
   gap: 0.75rem;

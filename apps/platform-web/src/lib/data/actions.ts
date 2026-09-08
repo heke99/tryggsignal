@@ -16,6 +16,15 @@ const PROCESS_TYPES = new Set([
   'OVK',
 ]);
 const PRIORITIES = new Set(['LOW', 'NORMAL', 'HIGH', 'URGENT']);
+const PARTY_TYPES = new Set(['PERSON', 'ORGANIZATION']);
+const PARTY_RELATIONSHIPS = new Set([
+  'APPLICANT',
+  'REPRESENTATIVE',
+  'PROPERTY_OWNER',
+  'NEIGHBOUR',
+  'CONTROL_RESPONSIBLE',
+  'OTHER',
+]);
 
 function field(formData: FormData, name: string): string {
   return String(formData.get(name) ?? '').trim();
@@ -223,4 +232,119 @@ export async function closeCaseAction(formData: FormData): Promise<void> {
   revalidatePath('/handlaggning');
   revalidatePath(detailPath(caseId));
   redirect(`${detailPath(caseId)}?ok=closed`);
+}
+
+/** Phase G2: add a party through the parent case authorization boundary. */
+export async function addCasePartyAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const partyType = field(formData, 'partyType');
+  const displayName = field(formData, 'displayName');
+  const relationship = field(formData, 'relationship');
+  const organizationNumber = field(formData, 'organizationNumber');
+  const personReference = field(formData, 'personReference');
+  const contactEmail = field(formData, 'contactEmail');
+  const contactPhone = field(formData, 'contactPhone');
+
+  if (
+    caseId === null ||
+    !PARTY_TYPES.has(partyType) ||
+    !PARTY_RELATIONSHIPS.has(relationship) ||
+    displayName.length < 2 ||
+    displayName.length > 200 ||
+    organizationNumber.length > 50 ||
+    personReference.length > 200 ||
+    contactEmail.length > 320 ||
+    contactPhone.length > 50
+  ) {
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('core').rpc('add_case_party_for_user', {
+    p_case_id: caseId,
+    p_party_type: partyType,
+    p_display_name: displayName,
+    p_relationship: relationship,
+    p_organization_number: organizationNumber || null,
+    p_person_reference: personReference || null,
+    p_contact_email: contactEmail || null,
+    p_contact_phone: contactPhone || null,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=party`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=party-added#parter`);
+}
+
+export async function updateCasePartyRelationshipAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const casePartyId = uuid(field(formData, 'casePartyId'));
+  const relationship = field(formData, 'relationship');
+
+  if (caseId === null || casePartyId === null || !PARTY_RELATIONSHIPS.has(relationship)) {
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('core').rpc('update_case_party_relationship_for_user', {
+    p_case_party_id: casePartyId,
+    p_relationship: relationship,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=party-role#parter`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=party-role#parter`);
+}
+
+export async function updatePartyContactAction(formData: FormData): Promise<void> {
+  const caseId = safeCaseId(formData);
+  const partyId = uuid(field(formData, 'partyId'));
+  const displayName = field(formData, 'displayName');
+  const organizationNumber = field(formData, 'organizationNumber');
+  const personReference = field(formData, 'personReference');
+  const contactEmail = field(formData, 'contactEmail');
+  const contactPhone = field(formData, 'contactPhone');
+
+  if (
+    caseId === null ||
+    partyId === null ||
+    displayName.length < 2 ||
+    displayName.length > 200 ||
+    organizationNumber.length > 50 ||
+    personReference.length > 200 ||
+    contactEmail.length > 320 ||
+    contactPhone.length > 50
+  ) {
+    redirect(
+      caseId === null ? '/handlaggning?error=validation' : `${detailPath(caseId)}?error=validation`,
+    );
+  }
+
+  const { client } = await authenticatedTenantSession();
+  const { error } = await client.schema('core').rpc('update_party_contact_for_user', {
+    p_case_id: caseId,
+    p_party_id: partyId,
+    p_display_name: displayName,
+    p_organization_number: organizationNumber || null,
+    p_person_reference: personReference || null,
+    p_contact_email: contactEmail || null,
+    p_contact_phone: contactPhone || null,
+  });
+
+  if (error !== null) {
+    redirect(`${detailPath(caseId)}?error=party-contact#parter`);
+  }
+
+  revalidatePath(detailPath(caseId));
+  redirect(`${detailPath(caseId)}?ok=party-contact#parter`);
 }

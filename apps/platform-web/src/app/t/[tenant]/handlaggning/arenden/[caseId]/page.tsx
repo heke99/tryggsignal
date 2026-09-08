@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import {
+  addCasePartyAction,
   advanceWorkflowAction,
   assignCaseAction,
   closeCaseAction,
   setWorkflowPauseAction,
+  updateCasePartyRelationshipAction,
+  updatePartyContactAction,
 } from '@/lib/data/actions';
 import { currentTenant } from '@/lib/tenant/context';
 import { loadCaseWorkspace } from '@/lib/data/workspace';
@@ -33,6 +36,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   workflow: 'Processens pausstatus kunde inte ändras.',
   close:
     'Ärendet kunde inte stängas. Aktiv process måste vara avslutad och du måste ha rätt behörighet.',
+  party: 'Parten kunde inte läggas till. Kontrollera uppgifter och behörighet.',
+  'party-role': 'Partens roll i ärendet kunde inte ändras.',
+  'party-contact':
+    'Kontaktuppgifterna kunde inte ändras. En delad part kräver behörighet till samtliga länkade ärenden.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -41,6 +48,9 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   paused: 'Processen är pausad. Lagstadgade frister ändras inte automatiskt.',
   resumed: 'Processen är återupptagen.',
   closed: 'Ärendet är stängt och redo för arkivsteget.',
+  'party-added': 'Parten har lagts till i ärendet.',
+  'party-role': 'Partens roll i ärendet har uppdaterats.',
+  'party-contact': 'Partens kontaktuppgifter har uppdaterats.',
 };
 
 export default async function CaseWorkspacePage({
@@ -201,6 +211,221 @@ export default async function CaseWorkspacePage({
             <button type="submit">Spara fördelning</button>
           </div>
         </form>
+      </section>
+
+      <section id="parter" aria-labelledby="h-parties" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-parties">Parter ({workspace.parties.length})</h2>
+            <p className="meta">
+              Sökande, fastighetsägare, ombud och andra roller hör till ärendet. Ändringar
+              auktoriseras mot ärendet i databasen och auditloggas.
+            </p>
+          </div>
+        </div>
+
+        <div className="entity-list">
+          {workspace.parties.map((party) => (
+            <article className="entity-item" key={party.relation_id}>
+              <div className="entity-heading">
+                <div>
+                  <h3>{party.display_name}</h3>
+                  <p className="meta">
+                    {party.party_type === 'PERSON' ? 'Person' : 'Organisation'} ·{' '}
+                    {party.relationship}
+                    {party.identity_link_verified ? ' · verifierad portalidentitet' : ''}
+                  </p>
+                </div>
+              </div>
+
+              <dl className="compact-details">
+                <div>
+                  <dt>E-post</dt>
+                  <dd>{party.contact_email ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt>Telefon</dt>
+                  <dd>{party.contact_phone ?? '—'}</dd>
+                </div>
+                {party.party_type === 'ORGANIZATION' && (
+                  <div>
+                    <dt>Organisationsnummer</dt>
+                    <dd>{party.organization_number ?? '—'}</dd>
+                  </div>
+                )}
+                {party.party_type === 'PERSON' && party.person_reference !== null && (
+                  <div>
+                    <dt>Personreferens</dt>
+                    <dd>{party.person_reference}</dd>
+                  </div>
+                )}
+              </dl>
+
+              <form action={updateCasePartyRelationshipAction} className="inline-action">
+                <input type="hidden" name="caseId" value={header.id} />
+                <input type="hidden" name="casePartyId" value={party.relation_id} />
+                <label htmlFor={`relationship-${party.relation_id}`}>Roll i ärendet</label>
+                <select
+                  id={`relationship-${party.relation_id}`}
+                  name="relationship"
+                  defaultValue={party.relationship}
+                >
+                  <option value="APPLICANT">Sökande</option>
+                  <option value="PROPERTY_OWNER">Fastighetsägare</option>
+                  <option value="REPRESENTATIVE">Ombud</option>
+                  <option value="NEIGHBOUR">Sakägare / granne</option>
+                  <option value="CONTROL_RESPONSIBLE">Kontrollansvarig</option>
+                  <option value="OTHER">Annan</option>
+                </select>
+                <button type="submit" className="button-secondary">
+                  Uppdatera roll
+                </button>
+              </form>
+
+              <details>
+                <summary>Redigera kontaktuppgifter</summary>
+                <form action={updatePartyContactAction} className="form-grid compact-form">
+                  <input type="hidden" name="caseId" value={header.id} />
+                  <input type="hidden" name="partyId" value={party.party_id} />
+
+                  <div className="form-field form-field-wide">
+                    <label htmlFor={`party-name-${party.party_id}`}>Namn</label>
+                    <input
+                      id={`party-name-${party.party_id}`}
+                      name="displayName"
+                      type="text"
+                      minLength={2}
+                      maxLength={200}
+                      defaultValue={party.display_name}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor={`party-email-${party.party_id}`}>E-post</label>
+                    <input
+                      id={`party-email-${party.party_id}`}
+                      name="contactEmail"
+                      type="email"
+                      maxLength={320}
+                      defaultValue={party.contact_email ?? ''}
+                    />
+                  </div>
+
+                  <div className="form-field">
+                    <label htmlFor={`party-phone-${party.party_id}`}>Telefon</label>
+                    <input
+                      id={`party-phone-${party.party_id}`}
+                      name="contactPhone"
+                      type="tel"
+                      maxLength={50}
+                      defaultValue={party.contact_phone ?? ''}
+                    />
+                  </div>
+
+                  {party.party_type === 'ORGANIZATION' ? (
+                    <div className="form-field form-field-wide">
+                      <label htmlFor={`party-org-${party.party_id}`}>Organisationsnummer</label>
+                      <input
+                        id={`party-org-${party.party_id}`}
+                        name="organizationNumber"
+                        type="text"
+                        maxLength={50}
+                        defaultValue={party.organization_number ?? ''}
+                      />
+                      <input type="hidden" name="personReference" value="" />
+                    </div>
+                  ) : (
+                    <div className="form-field form-field-wide">
+                      <label htmlFor={`party-person-ref-${party.party_id}`}>Personreferens</label>
+                      <input
+                        id={`party-person-ref-${party.party_id}`}
+                        name="personReference"
+                        type="text"
+                        maxLength={200}
+                        defaultValue={party.person_reference ?? ''}
+                      />
+                      <input type="hidden" name="organizationNumber" value="" />
+                      <p className="field-help">
+                        Använd en säker extern referens. Personnummer ska inte lagras i detta fält.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="form-actions form-field-wide">
+                    <button type="submit">Spara kontaktuppgifter</button>
+                  </div>
+                </form>
+              </details>
+            </article>
+          ))}
+          {workspace.parties.length === 0 && <p className="meta">Inga parter registrerade.</p>}
+        </div>
+
+        <details className="create-panel">
+          <summary>Lägg till part</summary>
+          <form action={addCasePartyAction} className="form-grid compact-form">
+            <input type="hidden" name="caseId" value={header.id} />
+
+            <div className="form-field">
+              <label htmlFor="newPartyType">Typ</label>
+              <select id="newPartyType" name="partyType" defaultValue="PERSON">
+                <option value="PERSON">Person</option>
+                <option value="ORGANIZATION">Organisation</option>
+              </select>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="newPartyRelationship">Roll i ärendet</label>
+              <select id="newPartyRelationship" name="relationship" defaultValue="APPLICANT">
+                <option value="APPLICANT">Sökande</option>
+                <option value="PROPERTY_OWNER">Fastighetsägare</option>
+                <option value="REPRESENTATIVE">Ombud</option>
+                <option value="NEIGHBOUR">Sakägare / granne</option>
+                <option value="CONTROL_RESPONSIBLE">Kontrollansvarig</option>
+                <option value="OTHER">Annan</option>
+              </select>
+            </div>
+
+            <div className="form-field form-field-wide">
+              <label htmlFor="newPartyName">Namn</label>
+              <input
+                id="newPartyName"
+                name="displayName"
+                type="text"
+                minLength={2}
+                maxLength={200}
+                required
+              />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="newPartyEmail">E-post</label>
+              <input id="newPartyEmail" name="contactEmail" type="email" maxLength={320} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="newPartyPhone">Telefon</label>
+              <input id="newPartyPhone" name="contactPhone" type="tel" maxLength={50} />
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="newPartyOrg">Organisationsnummer</label>
+              <input id="newPartyOrg" name="organizationNumber" type="text" maxLength={50} />
+              <p className="field-help">Används endast när typen är Organisation.</p>
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="newPartyPersonRef">Personreferens</label>
+              <input id="newPartyPersonRef" name="personReference" type="text" maxLength={200} />
+              <p className="field-help">Används endast för Person. Personnummer lagras inte här.</p>
+            </div>
+
+            <div className="form-actions form-field-wide">
+              <button type="submit">Lägg till part</button>
+            </div>
+          </form>
+        </details>
       </section>
 
       <section id="handlingar" aria-labelledby="h-documents" className="card">
