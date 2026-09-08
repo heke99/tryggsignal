@@ -264,59 +264,59 @@ export async function loadCaseWorkspace(
 
   const [documents, deadlines, history, workflowInstance, memberships, teams, partyRelations] =
     await Promise.all([
-    session.client
-      .schema('documents')
-      .from('documents')
-      .select('id, title, document_type, current_version')
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: false })
-      .limit(50),
-    session.client
-      .schema('workflow')
-      .from('deadlines')
-      .select('id, name, due_at, status')
-      .eq('case_id', caseId)
-      .order('due_at', { ascending: true }),
-    session.client
-      .schema('core')
-      .from('case_status_history')
-      .select('id, to_status, changed_at')
-      .eq('case_id', caseId)
-      .order('changed_at', { ascending: false })
-      .limit(20),
-    session.client
-      .schema('workflow')
-      .from('workflow_instances')
-      .select('id, current_state, status, template_version_id, started_at')
-      .eq('case_id', caseId)
-      .order('started_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{
-        id: string;
-        current_state: string;
-        status: string;
-        template_version_id: string;
-        started_at: string;
-      }>(),
-    session.client
-      .schema('identity')
-      .from('user_memberships')
-      .select('user_id')
-      .eq('authority_id', header.authority_id),
-    session.client
-      .schema('organization')
-      .from('teams')
-      .select('id, name')
-      .eq('authority_id', header.authority_id)
-      .eq('is_active', true)
-      .order('name', { ascending: true }),
-    session.client
-      .schema('core')
-      .from('case_parties')
-      .select('id, party_id, relationship, identity_user_id, verified_at')
-      .eq('case_id', caseId)
-      .order('created_at', { ascending: true }),
-  ]);
+      session.client
+        .schema('documents')
+        .from('documents')
+        .select('id, title, document_type, current_version')
+        .eq('case_id', caseId)
+        .order('created_at', { ascending: false })
+        .limit(50),
+      session.client
+        .schema('workflow')
+        .from('deadlines')
+        .select('id, name, due_at, status')
+        .eq('case_id', caseId)
+        .order('due_at', { ascending: true }),
+      session.client
+        .schema('core')
+        .from('case_status_history')
+        .select('id, to_status, changed_at')
+        .eq('case_id', caseId)
+        .order('changed_at', { ascending: false })
+        .limit(20),
+      session.client
+        .schema('workflow')
+        .from('workflow_instances')
+        .select('id, current_state, status, template_version_id, started_at')
+        .eq('case_id', caseId)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{
+          id: string;
+          current_state: string;
+          status: string;
+          template_version_id: string;
+          started_at: string;
+        }>(),
+      session.client
+        .schema('identity')
+        .from('user_memberships')
+        .select('user_id')
+        .eq('authority_id', header.authority_id),
+      session.client
+        .schema('organization')
+        .from('teams')
+        .select('id, name')
+        .eq('authority_id', header.authority_id)
+        .eq('is_active', true)
+        .order('name', { ascending: true }),
+      session.client
+        .schema('core')
+        .from('case_parties')
+        .select('id, party_id, relationship, identity_user_id, verified_at')
+        .eq('case_id', caseId)
+        .order('created_at', { ascending: true }),
+    ]);
 
   const userIds = Array.from(
     new Set(
@@ -344,14 +344,16 @@ export async function loadCaseWorkspace(
   const partyRows =
     partyIds.length === 0
       ? []
-      : (((await session.client
-          .schema('core')
-          .from('parties')
-          .select(
-            'id, party_type, display_name, organization_number, person_reference, contact_email, contact_phone',
-          )
-          .in('id', partyIds)
-          .order('display_name', { ascending: true })).data ?? []) as PartyRow[]);
+      : (((
+          await session.client
+            .schema('core')
+            .from('parties')
+            .select(
+              'id, party_type, display_name, organization_number, person_reference, contact_email, contact_phone',
+            )
+            .in('id', partyIds)
+            .order('display_name', { ascending: true })
+        ).data ?? []) as PartyRow[]);
 
   const partyById = new Map(partyRows.map((party) => [party.id, party] as const));
   const parties: CaseParty[] = relationRows.flatMap((relation) => {
@@ -368,8 +370,7 @@ export async function loadCaseWorkspace(
         person_reference: party.person_reference,
         contact_email: party.contact_email,
         contact_phone: party.contact_phone,
-        identity_link_verified:
-          relation.identity_user_id !== null && relation.verified_at !== null,
+        identity_link_verified: relation.identity_user_id !== null && relation.verified_at !== null,
       },
     ];
   });
