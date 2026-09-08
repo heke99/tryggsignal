@@ -4,10 +4,7 @@ import { createTenantUserClient } from '@tryggsignal/database';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TenantContext } from '@tryggsignal/tenancy';
 import { tenantCookieName } from '@tryggsignal/tenancy';
-import {
-  resolveTenantRuntime,
-  TenantRuntimeUnavailableError,
-} from '@/lib/tenant/runtime';
+import { resolveTenantRuntime, TenantRuntimeUnavailableError } from '@/lib/tenant/runtime';
 
 /**
  * Masterplan 171/174: reads run against the tenant's own data plane with the
