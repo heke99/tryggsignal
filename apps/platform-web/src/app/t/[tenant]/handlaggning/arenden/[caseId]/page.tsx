@@ -6,11 +6,15 @@ import {
   closeCaseAction,
   linkCasePropertyAction,
   registerLocalPropertyAction,
+  retryDocumentConfirmationAction,
   setPrimaryPropertyAction,
   setWorkflowPauseAction,
   updateCasePartyRelationshipAction,
+  updateDocumentMetadataAction,
   updatePartyContactAction,
 } from '@/lib/data/actions';
+import { DocumentDownloadButton } from './DocumentDownloadButton';
+import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUploadForm';
 import { currentTenant } from '@/lib/tenant/context';
 import { loadCaseWorkspace, searchPropertyCandidates } from '@/lib/data/workspace';
 
@@ -47,6 +51,10 @@ const ERROR_MESSAGES: Record<string, string> = {
   'property-primary': 'Primär fastighet kunde inte ändras.',
   'property-register':
     'Den lokala fastigheten kunde inte registreras. Kontrollera beteckning, adress och behörighet.',
+  'document-confirm':
+    'Filen finns inte i Storage eller kunde inte köas för säkerhetskontroll.',
+  'document-metadata':
+    'Dokumentets klassificering kunde inte uppdateras. Kontrollera behörighet och värden.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -61,6 +69,8 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'property-linked': 'Fastigheten har kopplats till ärendet.',
   'property-primary': 'Primär fastighet har uppdaterats.',
   'property-registered': 'Den provisoriska lokala fastigheten har registrerats och kopplats.',
+  'document-confirmed': 'Filen är bekräftad och köad för säkerhetskontroll.',
+  'document-metadata': 'Dokumentets metadata och informationsklass har uppdaterats.',
 };
 
 export default async function CaseWorkspacePage({
@@ -670,18 +680,199 @@ export default async function CaseWorkspacePage({
       </section>
 
       <section id="handlingar" aria-labelledby="h-documents" className="card">
-        <h2 id="h-documents">Handlingar ({workspace.documents.length})</h2>
-        <ul>
-          {workspace.documents.map((doc) => (
-            <li key={doc.id}>
-              {doc.title}{' '}
-              <span className="meta">
-                ({doc.document_type}, v{doc.current_version})
-              </span>
-            </li>
-          ))}
-          {workspace.documents.length === 0 && <li className="meta">Inga handlingar.</li>}
-        </ul>
+        <div className="section-heading">
+          <div>
+            <h2 id="h-documents">Handlingar ({workspace.documents.length})</h2>
+            <p className="meta">
+              Filer går direkt till privat quarantine. De blir inte nedladdningsbara förrän
+              hash, storlek, filsignatur och malwarekontroll har passerat.
+            </p>
+          </div>
+        </div>
+
+        <div className="entity-list">
+          {workspace.documents.map((doc) => {
+            const latest = doc.versions[0] ?? null;
+            return (
+              <article className="entity-item" key={doc.id}>
+                <div className="entity-heading">
+                  <div>
+                    <h3>{doc.title}</h3>
+                    <p className="meta">
+                      {doc.document_type} · {doc.information_class} · sekretessnivå{' '}
+                      {doc.secrecy_level} · aktuell version {doc.current_version}
+                    </p>
+                  </div>
+                </div>
+
+                {doc.description !== null && <p>{doc.description}</p>}
+
+                <details>
+                  <summary>Redigera dokumentmetadata</summary>
+                  <form action={updateDocumentMetadataAction} className="form-grid compact-form">
+                    <input type="hidden" name="caseId" value={header.id} />
+                    <input type="hidden" name="documentId" value={doc.id} />
+
+                    <div className="form-field">
+                      <label htmlFor={`doc-type-${doc.id}`}>Handlingstyp</label>
+                      <input
+                        id={`doc-type-${doc.id}`}
+                        name="documentType"
+                        type="text"
+                        minLength={2}
+                        maxLength={80}
+                        defaultValue={doc.document_type}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-field">
+                      <label htmlFor={`doc-title-${doc.id}`}>Titel</label>
+                      <input
+                        id={`doc-title-${doc.id}`}
+                        name="title"
+                        type="text"
+                        minLength={2}
+                        maxLength={240}
+                        defaultValue={doc.title}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-field">
+                      <label htmlFor={`doc-class-${doc.id}`}>Informationsklass</label>
+                      <select
+                        id={`doc-class-${doc.id}`}
+                        name="informationClass"
+                        defaultValue={doc.information_class}
+                      >
+                        <option value="PUBLIC">Publik</option>
+                        <option value="INTERNAL">Intern</option>
+                        <option value="RESTRICTED">Begränsad</option>
+                        <option value="SECRET">Sekretess</option>
+                      </select>
+                    </div>
+
+                    <div className="form-field">
+                      <label htmlFor={`doc-secrecy-${doc.id}`}>Sekretessnivå</label>
+                      <select
+                        id={`doc-secrecy-${doc.id}`}
+                        name="secrecyLevel"
+                        defaultValue={String(doc.secrecy_level)}
+                      >
+                        <option value="0">0 — ingen</option>
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4 — hög</option>
+                      </select>
+                    </div>
+
+                    <div className="form-field form-field-wide">
+                      <label htmlFor={`doc-description-${doc.id}`}>Beskrivning</label>
+                      <textarea
+                        id={`doc-description-${doc.id}`}
+                        name="description"
+                        rows={3}
+                        maxLength={10000}
+                        defaultValue={doc.description ?? ''}
+                      />
+                    </div>
+
+                    <div className="form-actions form-field-wide">
+                      <button type="submit" className="button-secondary">
+                        Spara metadata
+                      </button>
+                    </div>
+                  </form>
+                </details>
+
+                <h4>Versioner</h4>
+                <ol className="document-version-list">
+                  {doc.versions.map((version) => (
+                    <li key={version.id} className="document-version">
+                      <div>
+                        <strong>
+                          v{version.version} · {version.original_filename ?? 'fil'}
+                        </strong>{' '}
+                        <span className="status-badge">{version.ingestion_status}</span>
+                        <p className="meta">
+                          {(version.size_bytes / 1024).toFixed(1)} KiB · deklarerad MIME{' '}
+                          {version.mime_type}
+                          {version.detected_mime_type === null
+                            ? ''
+                            : ` · detekterad ${version.detected_mime_type}`}
+                        </p>
+                        <p className="meta document-hash">SHA-256: {version.sha256}</p>
+                        {version.scanner_provider !== null && (
+                          <p className="meta">
+                            Scanner: {version.scanner_provider}
+                            {version.scanner_version === null
+                              ? ''
+                              : ` ${version.scanner_version}`}
+                            {version.signature_version === null
+                              ? ''
+                              : ` · signatur ${version.signature_version}`}
+                            {version.scanned_at === null
+                              ? ''
+                              : ` · ${version.scanned_at.slice(0, 16).replace('T', ' ')}`}
+                          </p>
+                        )}
+                        {version.threat_name !== null && (
+                          <p className="notice notice-error" role="alert">
+                            Blockerad malwareträff: {version.threat_name}
+                          </p>
+                        )}
+                        {version.rejection_reason !== null && (
+                          <p className="meta">{version.rejection_reason}</p>
+                        )}
+                      </div>
+
+                      <div className="document-version-actions">
+                        {version.ingestion_status === 'CLEAN' && (
+                          <DocumentDownloadButton
+                            caseId={header.id}
+                            documentVersionId={version.id}
+                          />
+                        )}
+                        {version.ingestion_status === 'QUARANTINED' &&
+                          version.upload_confirmed_at === null && (
+                            <form action={retryDocumentConfirmationAction}>
+                              <input type="hidden" name="caseId" value={header.id} />
+                              <input
+                                type="hidden"
+                                name="documentVersionId"
+                                value={version.id}
+                              />
+                              <button type="submit" className="button-secondary">
+                                Bekräfta uppladdning igen
+                              </button>
+                            </form>
+                          )}
+                      </div>
+                    </li>
+                  ))}
+                  {doc.versions.length === 0 && <li className="meta">Ingen filversion registrerad.</li>}
+                </ol>
+
+                {latest?.ingestion_status !== 'REJECTED' && (
+                  <DocumentVersionUploadForm caseId={header.id} documentId={doc.id} />
+                )}
+              </article>
+            );
+          })}
+          {workspace.documents.length === 0 && <p className="meta">Inga handlingar.</p>}
+        </div>
+
+        <details className="create-panel">
+          <summary>Ladda upp ny handling</summary>
+          <NewDocumentUploadForm caseId={header.id} />
+        </details>
+
+        <p className="meta">
+          Om malware-scannern inte är konfigurerad stannar filen säkert i quarantine. Systemet
+          öppnar aldrig en fil genom fail-open.
+        </p>
       </section>
 
       <section id="process" aria-labelledby="h-process" className="card">
