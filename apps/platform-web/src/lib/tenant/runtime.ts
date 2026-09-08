@@ -1,13 +1,25 @@
 import 'server-only';
 
+import { createHmac } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { EnvSecretProvider } from '@tryggsignal/config';
 import { assertDeploymentMatchesContext } from '@tryggsignal/database';
 import type { TenantAuthConfiguration, AudienceKind } from '@tryggsignal/identity';
-import type { TenantContext, TenantDeploymentRecord } from '@tryggsignal/tenancy';
+import type {
+  RateLimitedAction,
+  TenantContext,
+  TenantDeploymentRecord,
+} from '@tryggsignal/tenancy';
+import { RATE_LIMITS } from '@tryggsignal/tenancy';
 
 export class TenantRuntimeUnavailableError extends Error {
-  constructor(readonly code: 'CONTROL_PLANE_UNAVAILABLE' | 'DEPLOYMENT_UNAVAILABLE' | 'AUTH_CONFIG_UNAVAILABLE') {
+  constructor(
+    readonly code:
+      | 'CONTROL_PLANE_UNAVAILABLE'
+      | 'DEPLOYMENT_UNAVAILABLE'
+      | 'AUTH_CONFIG_UNAVAILABLE'
+      | 'RATE_LIMIT_UNAVAILABLE',
+  ) {
     super(code);
     this.name = 'TenantRuntimeUnavailableError';
   }
@@ -25,7 +37,17 @@ interface RuntimeRow {
 }
 
 export interface TenantRuntimeDeployment
-  extends Pick<TenantDeploymentRecord, 'id' | 'supabaseProjectRef' | 'supabaseRegion' | 'supabaseUrl' | 'publishableKey' | 'schemaVersion' | 'status' | 'healthStatus'> {}
+  extends Pick<
+    TenantDeploymentRecord,
+    | 'id'
+    | 'supabaseProjectRef'
+    | 'supabaseRegion'
+    | 'supabaseUrl'
+    | 'publishableKey'
+    | 'schemaVersion'
+    | 'status'
+    | 'healthStatus'
+  > {}
 
 interface AuthRow {
   reference: string;
@@ -39,6 +61,12 @@ interface AuthRow {
   allowed_email_domains: string[];
   environment: string;
   enabled: boolean;
+}
+
+interface RateLimitRow {
+  allowed: boolean;
+  remaining: number;
+  reset_at: string;
 }
 
 let controlPlaneClientPromise: Promise<SupabaseClient> | undefined;
@@ -137,5 +165,45 @@ export async function resolveTenantAuthConfiguration(
     credentialReference: data.credential_reference,
     enabled: data.enabled,
     allowedEmailDomains: data.allowed_email_domains,
+  };
+}
+
+/**
+ * Masterplan 84 / phase C6: one control-plane counter is shared by every Vercel
+ * instance and region. The raw subject (for auth normally the client IP) never
+ * leaves the server; only a keyed HMAC is persisted.
+ */
+export async function consumeDistributedRateLimit(
+  context: TenantContext,
+  action: RateLimitedAction,
+  subject: string,
+): Promise<{ readonly allowed: boolean; readonly remaining: number; readonly resetAt: Date }> {
+  const secret = process.env.RATE_LIMIT_KEY_SECRET;
+  if (secret === undefined || secret.length < 32) {
+    throw new TenantRuntimeUnavailableError('RATE_LIMIT_UNAVAILABLE');
+  }
+
+  const rule = RATE_LIMITS[action];
+  const digest = createHmac('sha256', secret)
+    .update(`${action}:${context.tenantId}:${subject}`)
+    .digest('hex');
+
+  const client = await controlPlaneServerClient();
+  const { data, error } = await client
+    .rpc('consume_rate_limit', {
+      p_bucket_key: `${action}:${context.tenantId}:${digest}`,
+      p_window_seconds: Math.ceil(rule.windowMs / 1000),
+      p_limit: rule.limit,
+    })
+    .maybeSingle<RateLimitRow>();
+
+  if (error !== null || data === null) {
+    throw new TenantRuntimeUnavailableError('RATE_LIMIT_UNAVAILABLE');
+  }
+
+  return {
+    allowed: data.allowed,
+    remaining: data.remaining,
+    resetAt: new Date(data.reset_at),
   };
 }
