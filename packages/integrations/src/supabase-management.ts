@@ -70,7 +70,9 @@ export class SupabaseManagementProvider {
   }
 
   async projectHealth(projectRef: string): Promise<readonly SupabaseServiceHealth[]> {
-    const data = await this.request<unknown>(`/v1/projects/${encodeURIComponent(projectRef)}/health`);
+    const data = await this.request<unknown>(
+      `/v1/projects/${encodeURIComponent(projectRef)}/health`,
+    );
     if (Array.isArray(data)) return data as SupabaseServiceHealth[];
     if (data && typeof data === 'object' && 'services' in data) {
       const services = (data as { services?: unknown }).services;
@@ -101,7 +103,11 @@ export class SupabaseManagementProvider {
         typeof candidate.api_key === 'string',
     );
     if (key?.api_key === undefined) {
-      throw new SupabaseManagementError('api-keys', 404, 'No active publishable key is available.');
+      throw new SupabaseManagementError(
+        'api-keys',
+        404,
+        'No active publishable key is available.',
+      );
     }
     return key.api_key;
   }
