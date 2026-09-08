@@ -712,7 +712,7 @@ alter table documents.document_versions
     check (scan_result is null or scan_result in ('CLEAN', 'INFECTED', 'REJECTED', 'ERROR')),
   add column threat_name text;
 
-insert into authz.permissions (key, name)
+insert into authz.permissions (key, description)
 values ('document.scan', 'Scan quarantined document bytes')
 on conflict (key) do nothing;
 
