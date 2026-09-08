@@ -1103,6 +1103,187 @@ export async function loadCaseReferrals(
   }));
 }
 
+export interface CaseDecisionVersion {
+  readonly id: string;
+  readonly version: number;
+  readonly body: string;
+  readonly conditions: unknown;
+  readonly legalReferences: unknown;
+  readonly generatedBy: string;
+  readonly createdAt: string;
+  readonly createdBy: string | null;
+}
+
+export interface CaseDecision {
+  readonly id: string;
+  readonly decisionType: string;
+  readonly decisionNumber: string | null;
+  readonly status: string;
+  readonly currentVersion: number;
+  readonly approvedBy: string | null;
+  readonly approvedAt: string | null;
+  readonly decidedBy: string | null;
+  readonly decidedAt: string | null;
+  readonly delegationReference: string | null;
+  readonly appealDeadlineAt: string | null;
+  readonly signedAt: string | null;
+  readonly issuedAt: string | null;
+  readonly versions: readonly CaseDecisionVersion[];
+  readonly signature: {
+    id: string;
+    method: string;
+    providerReference: string | null;
+    signedBy: string;
+    signedAt: string;
+  } | null;
+  readonly issuances: readonly {
+    id: string;
+    recipientPartyId: string;
+    status: string;
+    queuedAt: string;
+    issuedAt: string | null;
+    deliveryId: string;
+  }[];
+}
+
+export async function loadCaseDecisions(
+  context: TenantContext,
+  caseId: string,
+): Promise<readonly CaseDecision[]> {
+  const session = await tenantClient(context);
+  if (!session.authenticated) return [];
+
+  const decisionsResult = await session.client
+    .schema('decision')
+    .from('decisions')
+    .select(
+      'id, decision_type, decision_number, status, current_version, approved_by, approved_at, decided_by, decided_at, delegation_reference, appeal_deadline_at, signed_at, issued_at, created_at',
+    )
+    .eq('case_id', caseId)
+    .order('created_at', { ascending: false });
+
+  const decisionRows = (decisionsResult.data ?? []) as Array<{
+    id: string;
+    decision_type: string;
+    decision_number: string | null;
+    status: string;
+    current_version: number;
+    approved_by: string | null;
+    approved_at: string | null;
+    decided_by: string | null;
+    decided_at: string | null;
+    delegation_reference: string | null;
+    appeal_deadline_at: string | null;
+    signed_at: string | null;
+    issued_at: string | null;
+    created_at: string;
+  }>;
+  const ids = decisionRows.map((row) => row.id);
+  if (ids.length === 0) return [];
+
+  const [versionsResult, signaturesResult, issuancesResult] = await Promise.all([
+    session.client
+      .schema('decision')
+      .from('decision_versions')
+      .select(
+        'id, decision_id, version, body, conditions, legal_references, generated_by, created_at, created_by',
+      )
+      .in('decision_id', ids)
+      .order('version', { ascending: false }),
+    session.client
+      .schema('decision')
+      .from('signatures')
+      .select('id, decision_id, method, provider_reference, signed_by, signed_at')
+      .in('decision_id', ids),
+    session.client
+      .schema('decision')
+      .from('issuances')
+      .select('id, decision_id, recipient_party_id, status, queued_at, issued_at, delivery_id')
+      .in('decision_id', ids)
+      .order('queued_at', { ascending: false }),
+  ]);
+
+  const versionRows = (versionsResult.data ?? []) as Array<{
+    id: string;
+    decision_id: string;
+    version: number;
+    body: string;
+    conditions: unknown;
+    legal_references: unknown;
+    generated_by: string;
+    created_at: string;
+    created_by: string | null;
+  }>;
+  const signatureRows = (signaturesResult.data ?? []) as Array<{
+    id: string;
+    decision_id: string;
+    method: string;
+    provider_reference: string | null;
+    signed_by: string;
+    signed_at: string;
+  }>;
+  const issuanceRows = (issuancesResult.data ?? []) as Array<{
+    id: string;
+    decision_id: string;
+    recipient_party_id: string;
+    status: string;
+    queued_at: string;
+    issued_at: string | null;
+    delivery_id: string;
+  }>;
+
+  return decisionRows.map((decision) => {
+    const signature = signatureRows.find((row) => row.decision_id === decision.id);
+    return {
+      id: decision.id,
+      decisionType: decision.decision_type,
+      decisionNumber: decision.decision_number,
+      status: decision.status,
+      currentVersion: decision.current_version,
+      approvedBy: decision.approved_by,
+      approvedAt: decision.approved_at,
+      decidedBy: decision.decided_by,
+      decidedAt: decision.decided_at,
+      delegationReference: decision.delegation_reference,
+      appealDeadlineAt: decision.appeal_deadline_at,
+      signedAt: decision.signed_at,
+      issuedAt: decision.issued_at,
+      versions: versionRows
+        .filter((row) => row.decision_id === decision.id)
+        .map((row) => ({
+          id: row.id,
+          version: row.version,
+          body: row.body,
+          conditions: row.conditions,
+          legalReferences: row.legal_references,
+          generatedBy: row.generated_by,
+          createdAt: row.created_at,
+          createdBy: row.created_by,
+        })),
+      signature:
+        signature === undefined
+          ? null
+          : {
+              id: signature.id,
+              method: signature.method,
+              providerReference: signature.provider_reference,
+              signedBy: signature.signed_by,
+              signedAt: signature.signed_at,
+            },
+      issuances: issuanceRows
+        .filter((row) => row.decision_id === decision.id)
+        .map((row) => ({
+          id: row.id,
+          recipientPartyId: row.recipient_party_id,
+          status: row.status,
+          queuedAt: row.queued_at,
+          issuedAt: row.issued_at,
+          deliveryId: row.delivery_id,
+        })),
+    };
+  });
+}
+
 export interface CaseCreationOptions {
   readonly available: boolean;
   readonly reason?: string;

@@ -1,21 +1,28 @@
 import Link from 'next/link';
 import {
   addCasePartyAction,
+  addDecisionVersionAction,
   addReferralRecipientAction,
   advanceWorkflowAction,
+  approveDecisionAction,
   assignCaseAction,
   closeCaseAction,
+  createDecisionAction,
   createReferralAction,
   evaluateCaseCompletenessAction,
   linkCasePropertyAction,
+  decideDecisionAction,
+  issueDecisionAction,
   queueReferralDeliveryAction,
   queueReferralFollowupAction,
   recordReferralResponseAction,
   registerLocalPropertyAction,
   retryDocumentConfirmationAction,
   reviewCaseCompletenessAction,
+  signDecisionAction,
   setPrimaryPropertyAction,
   setWorkflowPauseAction,
+  submitDecisionReviewAction,
   updateCasePartyRelationshipAction,
   updateDocumentMetadataAction,
   updatePartyContactAction,
@@ -25,6 +32,7 @@ import { DocumentVersionUploadForm, NewDocumentUploadForm } from './DocumentUplo
 import { currentTenant } from '@/lib/tenant/context';
 import {
   loadCaseCompleteness,
+  loadCaseDecisions,
   loadCaseReferrals,
   loadCaseWorkspace,
   searchPropertyCandidates,
@@ -75,6 +83,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   'referral-queue': 'Leveransen kunde inte köas. Kontrollera kanal och mottagaradress.',
   'referral-response': 'Remissvaret kunde inte registreras.',
   'referral-followup': 'Uppföljningen kunde inte köas.',
+  'decision-create': 'Beslutet kunde inte skapas.',
+  'decision-version': 'Beslutsversionen kunde inte sparas.',
+  'decision-review': 'Beslutet kunde inte skickas till granskning.',
+  'decision-approve': 'Beslutet kunde inte godkännas. Kontrollera beslutsbehörighet.',
+  'decision-decide': 'Det slutliga beslutet kunde inte registreras.',
+  'decision-sign': 'Signeringsbeviset kunde inte registreras.',
+  'decision-issue': 'Beslutet kunde inte köas för expediering.',
 };
 
 const SUCCESS_MESSAGES: Record<string, string> = {
@@ -98,6 +113,13 @@ const SUCCESS_MESSAGES: Record<string, string> = {
   'referral-queued': 'Leveransen är köad. Den markeras inte som skickad förrän provider bekräftar.',
   'referral-response': 'Remissvaret har registrerats.',
   'referral-followup': 'Uppföljningen är köad.',
+  'decision-created': 'Beslutsutkastet har skapats.',
+  'decision-version': 'En ny beslutsversion har sparats.',
+  'decision-review': 'Beslutet är skickat till granskning.',
+  'decision-approved': 'Beslutet har godkänts av behörig beslutsfattare.',
+  'decision-decided': 'Det slutliga mänskliga beslutet har registrerats.',
+  'decision-signed': 'Signeringsbeviset har registrerats.',
+  'decision-queued': 'Expedieringen är köad och blir inte SENT förrän provider bekräftar.',
 };
 
 export default async function CaseWorkspacePage({
@@ -129,9 +151,10 @@ export default async function CaseWorkspacePage({
   }
 
   const header = workspace.header;
-  const [completeness, referrals] = await Promise.all([
+  const [completeness, referrals, decisions] = await Promise.all([
     loadCaseCompleteness(tenant, caseId, header.authority_id),
     loadCaseReferrals(tenant, caseId),
+    loadCaseDecisions(tenant, caseId),
   ]);
   const assignedUser = workspace.assignees.find((user) => user.id === header.assigned_user_id);
   const assignedTeam = workspace.teams.find((team) => team.id === header.assigned_team_id);
@@ -1317,6 +1340,325 @@ export default async function CaseWorkspacePage({
           Extern leveransprovider är fortfarande en separat produktionsaktivering (EB-09).
           Domänstatusen förblir QUEUED tills en riktig leveranshändelse bekräftas.
         </p>
+      </section>
+
+      <section id="beslut" aria-labelledby="h-decisions" className="card">
+        <div className="section-heading">
+          <div>
+            <h2 id="h-decisions">Beslut ({decisions.length})</h2>
+            <p className="meta">
+              Utkast, granskning, godkännande, slutligt mänskligt beslut, signeringsbevis och
+              expediering är separata steg. AI-utkast kan aldrig själv bli ett slutligt beslut.
+            </p>
+          </div>
+        </div>
+
+        <details className="create-panel">
+          <summary>Skapa beslutsutkast</summary>
+          <form action={createDecisionAction} className="form-grid compact-form">
+            <input type="hidden" name="caseId" value={header.id} />
+            <div className="form-field">
+              <label htmlFor="decisionType">Beslutstyp</label>
+              <input
+                id="decisionType"
+                name="decisionType"
+                type="text"
+                minLength={2}
+                maxLength={120}
+                placeholder="Exempel: BYGGLOV_BESLUT"
+                required
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="decisionNumber">Beslutsnummer</label>
+              <input id="decisionNumber" name="decisionNumber" type="text" maxLength={120} />
+            </div>
+            <div className="form-actions form-field-wide">
+              <button type="submit">Skapa utkast</button>
+            </div>
+          </form>
+        </details>
+
+        <div className="entity-list">
+          {decisions.map((decision) => {
+            const currentVersion =
+              decision.versions.find((version) => version.version === decision.currentVersion) ??
+              null;
+
+            return (
+              <article className="entity-item" key={decision.id}>
+                <div className="entity-heading">
+                  <div>
+                    <h3>
+                      {decision.decisionNumber ?? decision.decisionType}{' '}
+                      <span className="status-badge">{decision.status}</span>
+                    </h3>
+                    <p className="meta">
+                      {decision.decisionType} · aktuell version {decision.currentVersion}
+                      {decision.approvedAt === null
+                        ? ''
+                        : ' · godkänd ' + decision.approvedAt.slice(0, 16).replace('T', ' ')}
+                      {decision.decidedAt === null
+                        ? ''
+                        : ' · beslutad ' + decision.decidedAt.slice(0, 16).replace('T', ' ')}
+                      {decision.issuedAt === null
+                        ? ''
+                        : ' · expedierad ' + decision.issuedAt.slice(0, 16).replace('T', ' ')}
+                    </p>
+                  </div>
+                </div>
+
+                {currentVersion !== null && (
+                  <div className="notice">
+                    <strong>
+                      Version {currentVersion.version} · {currentVersion.generatedBy}
+                    </strong>
+                    <p>{currentVersion.body}</p>
+                    <p className="meta">
+                      Villkor: {JSON.stringify(currentVersion.conditions)} · Rättsliga referenser:{' '}
+                      {JSON.stringify(currentVersion.legalReferences)}
+                    </p>
+                  </div>
+                )}
+
+                {(decision.status === 'DRAFT' || decision.status === 'REVIEW') && (
+                  <details className="create-panel" open={decision.currentVersion === 0}>
+                    <summary>
+                      {decision.currentVersion === 0
+                        ? 'Skapa första beslutsversion'
+                        : 'Skapa ny beslutsversion'}
+                    </summary>
+                    <form action={addDecisionVersionAction} className="form-grid compact-form">
+                      <input type="hidden" name="caseId" value={header.id} />
+                      <input type="hidden" name="decisionId" value={decision.id} />
+                      <div className="form-field form-field-wide">
+                        <label htmlFor={'decision-body-' + decision.id}>Beslutstext</label>
+                        <textarea
+                          id={'decision-body-' + decision.id}
+                          name="body"
+                          rows={8}
+                          minLength={3}
+                          maxLength={100000}
+                          required
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label htmlFor={'decision-conditions-' + decision.id}>
+                          Villkor — ett per rad
+                        </label>
+                        <textarea
+                          id={'decision-conditions-' + decision.id}
+                          name="conditions"
+                          rows={4}
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label htmlFor={'decision-refs-' + decision.id}>
+                          Rättsliga referenser — en per rad
+                        </label>
+                        <textarea
+                          id={'decision-refs-' + decision.id}
+                          name="legalReferences"
+                          rows={4}
+                        />
+                      </div>
+                      <div className="form-field">
+                        <label htmlFor={'decision-origin-' + decision.id}>Ursprung</label>
+                        <select
+                          id={'decision-origin-' + decision.id}
+                          name="generatedBy"
+                          defaultValue="HUMAN"
+                        >
+                          <option value="HUMAN">Människa</option>
+                          <option value="TEMPLATE">Mall</option>
+                        </select>
+                      </div>
+                      <div className="form-actions form-field-wide">
+                        <button type="submit">Spara ny version</button>
+                      </div>
+                    </form>
+                  </details>
+                )}
+
+                {decision.status === 'DRAFT' && decision.currentVersion > 0 && (
+                  <form action={submitDecisionReviewAction} className="inline-action">
+                    <input type="hidden" name="caseId" value={header.id} />
+                    <input type="hidden" name="decisionId" value={decision.id} />
+                    <button type="submit">Skicka till granskning</button>
+                  </form>
+                )}
+
+                {decision.status === 'REVIEW' && (
+                  <form action={approveDecisionAction} className="inline-action">
+                    <input type="hidden" name="caseId" value={header.id} />
+                    <input type="hidden" name="decisionId" value={decision.id} />
+                    <button type="submit">Godkänn beslut</button>
+                    <span className="meta">Kräver decision.approve.</span>
+                  </form>
+                )}
+
+                {decision.status === 'APPROVED' && (
+                  <form action={decideDecisionAction} className="form-grid compact-form">
+                    <input type="hidden" name="caseId" value={header.id} />
+                    <input type="hidden" name="decisionId" value={decision.id} />
+                    <div className="form-field form-field-wide">
+                      <label htmlFor={'delegation-' + decision.id}>
+                        Delegations-/behörighetsreferens
+                      </label>
+                      <input
+                        id={'delegation-' + decision.id}
+                        name="delegationReference"
+                        type="text"
+                        minLength={2}
+                        maxLength={500}
+                        required
+                      />
+                    </div>
+                    <div className="form-field">
+                      <label htmlFor={'appeal-' + decision.id}>Överklagandefrist</label>
+                      <input
+                        id={'appeal-' + decision.id}
+                        name="appealDeadlineAt"
+                        type="datetime-local"
+                      />
+                    </div>
+                    <div className="form-actions form-field-wide">
+                      <button type="submit">Registrera slutligt beslut</button>
+                    </div>
+                  </form>
+                )}
+
+                {decision.status === 'DECIDED' && decision.signature === null && (
+                  <details className="create-panel" open>
+                    <summary>Registrera signeringsbevis</summary>
+                    <p className="meta">
+                      MANUAL_ATTESTATION är en intern attestering. BankID/QES/annan extern metod får
+                      bara registreras när en verklig providerreferens finns.
+                    </p>
+                    <form action={signDecisionAction} className="form-grid compact-form">
+                      <input type="hidden" name="caseId" value={header.id} />
+                      <input type="hidden" name="decisionId" value={decision.id} />
+                      <div className="form-field">
+                        <label htmlFor={'signature-method-' + decision.id}>Metod</label>
+                        <select
+                          id={'signature-method-' + decision.id}
+                          name="method"
+                          defaultValue="MANUAL_ATTESTATION"
+                        >
+                          <option value="MANUAL_ATTESTATION">Intern attestering</option>
+                          <option value="BANKID">BankID — kräver providerreferens</option>
+                          <option value="QUALIFIED_ELECTRONIC">
+                            Kvalificerad e-signatur — kräver providerreferens
+                          </option>
+                          <option value="OTHER">Annan — kräver providerreferens</option>
+                        </select>
+                      </div>
+                      <div className="form-field">
+                        <label htmlFor={'signature-ref-' + decision.id}>Providerreferens</label>
+                        <input
+                          id={'signature-ref-' + decision.id}
+                          name="providerReference"
+                          type="text"
+                          maxLength={1000}
+                        />
+                      </div>
+                      <div className="form-actions form-field-wide">
+                        <button type="submit">Registrera signeringsbevis</button>
+                      </div>
+                    </form>
+                  </details>
+                )}
+
+                {decision.signature !== null && (
+                  <div className="notice">
+                    <strong>Signerad/attesterad: {decision.signature.method}</strong>
+                    <p className="meta">
+                      {decision.signature.signedAt.slice(0, 16).replace('T', ' ')}
+                      {decision.signature.providerReference === null
+                        ? ''
+                        : ' · providerref ' + decision.signature.providerReference}
+                    </p>
+                  </div>
+                )}
+
+                {decision.status === 'DECIDED' && decision.signature !== null && (
+                  <details className="create-panel">
+                    <summary>Expediera beslut</summary>
+                    <form action={issueDecisionAction} className="inline-action">
+                      <input type="hidden" name="caseId" value={header.id} />
+                      <input type="hidden" name="decisionId" value={decision.id} />
+                      <label htmlFor={'decision-recipient-' + decision.id}>Mottagare</label>
+                      <select
+                        id={'decision-recipient-' + decision.id}
+                        name="recipientPartyId"
+                        defaultValue=""
+                        required
+                      >
+                        <option value="" disabled>
+                          Välj part
+                        </option>
+                        {workspace.parties.map((party) => (
+                          <option key={party.party_id} value={party.party_id}>
+                            {party.display_name} · {party.relationship}
+                          </option>
+                        ))}
+                      </select>
+                      <label htmlFor={'decision-channel-' + decision.id}>Kanal</label>
+                      <select
+                        id={'decision-channel-' + decision.id}
+                        name="channel"
+                        defaultValue="EMAIL"
+                      >
+                        <option value="EMAIL">E-post</option>
+                        <option value="DIGITAL_POST">Digital post</option>
+                        <option value="SMS">SMS</option>
+                        <option value="PORTAL">Portal</option>
+                        <option value="PHYSICAL_POST">Fysisk post</option>
+                      </select>
+                      <button type="submit">Köa expediering</button>
+                    </form>
+                  </details>
+                )}
+
+                {decision.issuances.length > 0 && (
+                  <>
+                    <h4>Expedieringar</h4>
+                    <ul>
+                      {decision.issuances.map((issuance) => {
+                        const party = workspace.parties.find(
+                          (candidate) => candidate.party_id === issuance.recipientPartyId,
+                        );
+                        return (
+                          <li key={issuance.id}>
+                            {party?.display_name ?? issuance.recipientPartyId} ·{' '}
+                            <span className="status-badge">{issuance.status}</span> · köad{' '}
+                            {issuance.queuedAt.slice(0, 16).replace('T', ' ')}
+                            {issuance.issuedAt === null
+                              ? ''
+                              : ' · skickad ' + issuance.issuedAt.slice(0, 16).replace('T', ' ')}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </>
+                )}
+
+                <details>
+                  <summary>Versionshistorik ({decision.versions.length})</summary>
+                  <ol>
+                    {decision.versions.map((version) => (
+                      <li key={version.id}>
+                        v{version.version} · {version.generatedBy} ·{' '}
+                        {version.createdAt.slice(0, 16).replace('T', ' ')}
+                      </li>
+                    ))}
+                  </ol>
+                </details>
+              </article>
+            );
+          })}
+          {decisions.length === 0 && <p className="meta">Inga beslut registrerade.</p>}
+        </div>
       </section>
 
       <section id="process" aria-labelledby="h-process" className="card">
