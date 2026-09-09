@@ -84,7 +84,7 @@ create table integration.reconciliation_runs (
   result text not null check (result in ('GREEN', 'RED')),
   detail jsonb not null default '{}' check (jsonb_typeof(detail) = 'object'),
   constraint reconciliation_connector_scope_fk foreign key (connector_instance_id, authority_id)
-    references integration.connector_instances (id, authority_id) on delete cascade,
+    references integration.connector_instances (id, authority_id) on delete restrict,
   -- A mapped source row is new, changed, unchanged, or an extra duplicate.
   constraint reconciliation_source_partition check (
     source_count::bigint = new_count::bigint + changed_count + unchanged_count + duplicate_source_count
