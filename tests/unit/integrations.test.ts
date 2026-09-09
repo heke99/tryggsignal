@@ -109,6 +109,22 @@ describe('generic REST connector (masterplan 60/62)', () => {
       CapabilityNotSupportedError,
     );
   });
+
+  it('rejects a configuration that claims an unimplemented REST capability', () => {
+    const http = vi.fn<HttpClient>();
+    expect(
+      () =>
+        new GenericRestConnector(
+          {
+            key: 'lying-rest',
+            baseUrl: 'https://legacy.example.invalid/api',
+            caseMapping: mapping,
+            capabilities: ['createCase'],
+          },
+          http,
+        ),
+    ).toThrow(/does not implement declared capabilities/);
+  });
 });
 
 describe('external-blocked connector slot (masterplan 134)', () => {
@@ -325,6 +341,28 @@ describe('Phase H generic SFTP connector', () => {
       caseNumber: 'SFTP-1',
       mappingVersion: 'h-1',
     });
+  it('rejects SFTP paths that escape the configured remote directory', async () => {
+    const client: SftpClient = {
+      healthCheck: vi.fn().mockResolvedValue(healthy),
+      list: vi.fn().mockResolvedValue({
+        items: [{ path: '/other-tenant/cases.json' }],
+        nextCursor: null,
+      }),
+      read: vi.fn(),
+    };
+    const adapter = new GenericSftpConnector(
+      {
+        key: 'legacy-sftp',
+        remoteDirectory: '/inbox',
+        format: 'JSON_ARRAY',
+        caseMapping: genericMapping,
+        capabilities: ['listCases'],
+      },
+      client,
+    );
+
+    await expect(adapter.listCases(null)).rejects.toThrow(/outside the configured remote directory/);
+    expect(client.read).not.toHaveBeenCalled();
   });
 });
 
