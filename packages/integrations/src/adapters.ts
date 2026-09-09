@@ -15,6 +15,12 @@ import type {
   WriteResult,
 } from './contract';
 import { ExternalBlockedError } from './contract';
+import {
+  asString,
+  mapExternalCaseItems,
+  readPath,
+  type CaseMapping,
+} from './mapping';
 
 export interface HttpResponse {
   readonly status: number;
@@ -32,32 +38,11 @@ export interface RestConnectorConfig {
   readonly key: string;
   readonly baseUrl: string;
   /** Mapping from the source payload to the canonical shape, as configuration. */
-  readonly caseMapping: {
-    readonly externalId: string;
-    readonly caseNumber: string;
-    readonly title: string;
-    readonly status: string;
-    readonly sourceVersion?: string;
-    readonly sourceUpdatedAt?: string;
-    readonly itemsPath?: string;
-    readonly nextCursorPath?: string;
-  };
+  readonly caseMapping: CaseMapping;
   readonly capabilities: readonly ConnectorCapability[];
   /** Resolved by the SecretProvider at call time; never stored here. */
   readonly authorizationHeader?: string;
 }
-
-function readPath(payload: unknown, path: string): unknown {
-  let current = payload;
-  for (const segment of path.split('.')) {
-    if (current === null || typeof current !== 'object') return undefined;
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return current;
-}
-
-const asString = (value: unknown): string | null =>
-  typeof value === 'string' ? value : typeof value === 'number' ? String(value) : null;
 
 export class GenericRestConnector implements Connector {
   readonly key: string;
@@ -124,35 +109,8 @@ export class GenericRestConnector implements Connector {
     }
 
     const mapping = this.config.caseMapping;
-    const rawItems =
-      mapping.itemsPath === undefined ? response.body : readPath(response.body, mapping.itemsPath);
-    const items = Array.isArray(rawItems) ? rawItems : [];
-
     return {
-      items: items.flatMap((item): ExternalCase[] => {
-        const externalId = asString(readPath(item, mapping.externalId));
-        const caseNumber = asString(readPath(item, mapping.caseNumber));
-        // A record without a stable external id cannot be reconciled, so it is
-        // reported as an error by the caller rather than silently imported.
-        if (externalId === null || caseNumber === null) return [];
-        return [
-          {
-            externalId,
-            caseNumber,
-            title: asString(readPath(item, mapping.title)) ?? caseNumber,
-            status: asString(readPath(item, mapping.status)) ?? 'UNKNOWN',
-            sourceVersion:
-              mapping.sourceVersion === undefined
-                ? null
-                : asString(readPath(item, mapping.sourceVersion)),
-            sourceUpdatedAt:
-              mapping.sourceUpdatedAt === undefined
-                ? null
-                : asString(readPath(item, mapping.sourceUpdatedAt)),
-            raw: item,
-          },
-        ];
-      }),
+      items: mapExternalCaseItems(response.body, mapping),
       nextCursor:
         mapping.nextCursorPath === undefined
           ? null
