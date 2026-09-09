@@ -35,6 +35,14 @@ export function decideDelivery(existing: DeliveryRecord | null): DeliveryDecisio
   return 'RETRY';
 }
 
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
 /** H receipt identity uses a framed JSON tuple; a separator in a source
  * identifier cannot alias another event. Existing legacy write keys above
  * deliberately retain their format, so this change cannot replay old writes.
@@ -53,7 +61,7 @@ export function inboundEventKey(parts: {
         !value.trim() ||
         value !== value.trim() ||
         value.length > (limits[index] ?? 0) ||
-        /[\u0000-\u001f\u007f]/.test(value),
+        hasControlCharacter(value),
     )
   ) {
     throw new Error('Inbound event identity contains invalid values');
