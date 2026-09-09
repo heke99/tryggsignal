@@ -363,7 +363,9 @@ describe('Phase H generic SFTP connector', () => {
       client,
     );
 
-    await expect(adapter.listCases(null)).rejects.toThrow(/outside the configured remote directory/);
+    await expect(adapter.listCases(null)).rejects.toThrow(
+      /outside the configured remote directory/,
+    );
     expect(client.read).not.toHaveBeenCalled();
   });
 });

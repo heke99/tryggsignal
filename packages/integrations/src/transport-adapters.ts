@@ -163,7 +163,10 @@ export interface GenericSftpConnectorConfig extends Omit<GenericFileConnectorCon
 function assertRemotePath(remoteDirectory: string, candidate: string): string {
   const base = path.normalize('/' + remoteDirectory.replace(/^\/+/, '')).replace(/\/$/, '') || '/';
   const normalized = path.normalize('/' + candidate.replace(/^\/+/, ''));
-  const allowed = base === '/' ? normalized.startsWith('/') : normalized === base || normalized.startsWith(base + '/');
+  const allowed =
+    base === '/'
+      ? normalized.startsWith('/')
+      : normalized === base || normalized.startsWith(base + '/');
   if (!allowed) {
     throw new Error('SFTP source returned a path outside the configured remote directory');
   }
