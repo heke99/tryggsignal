@@ -67,7 +67,7 @@ EB-01/EB-02 remain.
 | P9 Rule Engine                      | IN_PROGRESS      | Deterministic/effective-dated engine with evidence is tested; representative municipal ruleset still needed.                                                                                             |
 | P10 Queues / Jobs                   | GREEN            | Ten durable PGMQ queues, runnable worker, idempotency, retries, heartbeat, dead letters and run log; worker integration GREEN.                                                                           |
 | P11 Search                          | GREEN            | Scoped read model, query builder and trigger-maintained search index; RLS/runtime integration GREEN.                                                                                                     |
-| P12 Generic Integration Framework   | IN_PROGRESS      | REST contract/idempotency/ownership/reconciliation exist; file/SFTP/SQL-read and remaining transport adapters are not complete.                                                                          |
+| P12 Generic Integration Framework   | GREEN            | Phase H verifies REST, File, SFTP and SQL-read adapters, SOAP/webhook slots, canonical mapping/provenance, duplicate receipt, reconciliation, RLS, health and SERVICE audit in clean replay.             |
 | P13 Migration Engine                | IN_PROGRESS      | Raw capture, mapping and reconciliation exist; golden dataset run not completed.                                                                                                                         |
 | P14 National Source Registry        | IN_PROGRESS      | Source/licence/cache/freshness registry exists; no real national source is GREEN yet.                                                                                                                    |
 | P15 Lantmäteriet                    | EXTERNAL_BLOCKED | EB-03.                                                                                                                                                                                                   |
@@ -97,6 +97,25 @@ EB-01/EB-02 remain.
 | P39 Tenant Provisioning             | IN_PROGRESS      | State machine/branding provisioning tests are GREEN; automated Supabase/domain orchestrator and real second data plane remain.                                                                           |
 | P40 Domain / White-label Hardening  | IN_PROGRESS      | Existing domain/E2E matrix is GREEN, but P40 cannot be GREEN before P36-P39 and two-real-data-plane isolation are complete.                                                                              |
 
+## Phase H generic integration completion
+
+**Phase H / P12 is GREEN.** The generic connector layer has one canonical mapping/provenance
+contract across REST, File, SFTP and SQL-read. SOAP remains an explicit capability-empty slot until a
+verified WSDL/auth contract exists, while inbound webhook events use the same idempotent durable
+receipt boundary.
+
+The H gate verifies:
+
+- truthful connector capabilities;
+- deterministic source hash and mapping version provenance;
+- File, SFTP and SQL-read transport behavior;
+- service-only raw inbound receipt;
+- duplicate delivery produces one durable event plus duplicate evidence;
+- reconciliation transitions connector health between `DEGRADED` and `HEALTHY`;
+- SERVICE audit evidence for receipt, duplicates and reconciliation.
+
+No vendor-specific or national API behavior is fabricated by the generic adapters.
+
 ## Phase G operational completion
 
 **Phase G is GREEN for the implemented product/runtime gates.** G1–G11 each pass their dedicated
@@ -116,21 +135,22 @@ later/global gates.
 
 ## Test suites
 
-| Suite                   | Command / file                                  | Verified scope                                                                               |
-| ----------------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Unit                    | pnpm test                                       | 21 files / 165 tests GREEN.                                                                  |
-| End-to-end              | pnpm test:e2e                                   | Built platform proxy, routing/isolation/security headers/accessibility structure GREEN.      |
-| RLS matrix              | tests/rls/authorization_matrix.sql              | Cross-authority/tenant scope, cases, documents, search, uploads and audit controls.          |
-| Runtime                 | tests/integration/runtime.sql                   | Workflow, search indexing, OVK and metrics.                                                  |
-| Worker                  | tests/integration/worker_runtime.sql            | Queue delivery, claim/idempotency/retry/heartbeat/dead-letter/run log.                       |
-| Branding / provisioning | tests/integration/branding_and_provisioning.sql | Publish/rollback, provisioning state machine and offboarding safeguards.                     |
-| Tenant runtime          | tests/integration/tenant_runtime.sql            | Exact hostname/deployment/project/auth isolation plus distributed rate limiter.              |
-| Gate G                  | tests/integration/gate_g_building_permit.sql    | Complete synthetic BYGGLOV from command-based creation to accountable human decision.        |
-| Release gate            | .github/workflows/release.yml                   | Source verification + migration replay + SQL matrices + Playwright before production deploy. |
+| Suite                   | Command / file                                     | Verified scope                                                                               |
+| ----------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Unit                    | pnpm test                                          | 21 files / 165 tests GREEN.                                                                  |
+| End-to-end              | pnpm test:e2e                                      | Built platform proxy, routing/isolation/security headers/accessibility structure GREEN.      |
+| RLS matrix              | tests/rls/authorization_matrix.sql                 | Cross-authority/tenant scope, cases, documents, search, uploads and audit controls.          |
+| Runtime                 | tests/integration/runtime.sql                      | Workflow, search indexing, OVK and metrics.                                                  |
+| Worker                  | tests/integration/worker_runtime.sql               | Queue delivery, claim/idempotency/retry/heartbeat/dead-letter/run log.                       |
+| Branding / provisioning | tests/integration/branding_and_provisioning.sql    | Publish/rollback, provisioning state machine and offboarding safeguards.                     |
+| Tenant runtime          | tests/integration/tenant_runtime.sql               | Exact hostname/deployment/project/auth isolation plus distributed rate limiter.              |
+| Gate G                  | tests/integration/gate_g_building_permit.sql       | Complete synthetic BYGGLOV from command-based creation to accountable human decision.        |
+| Phase H integrations    | tests/integration/generic_integration_adapters.sql | Generic catalog, duplicate receipt, provenance, reconciliation, health and SERVICE audit.    |
+| Release gate            | .github/workflows/release.yml                      | Source verification + migration replay + SQL matrices + Playwright before production deploy. |
 
 ## What is still required for MASTERPLAN V3 Global DoD
 
-The repository is not called complete just because Phase G, CI and the release gate are green. The corrected implementation sequence is complete through G. The next planned work begins at H, followed by I → J → K → L → M → N → O → P → Q → T.
+The corrected implementation sequence is complete through H. The next planned work begins at I, followed by J → K → L → M → N → O → P → Q → T.
 
 Global DoD still requires, among other things:
 

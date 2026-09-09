@@ -35,6 +35,8 @@ export interface ExternalCase {
   readonly status: string;
   readonly sourceVersion: string | null;
   readonly sourceUpdatedAt: string | null;
+  readonly sourceHash: string;
+  readonly mappingVersion: string;
   readonly raw: unknown;
 }
 

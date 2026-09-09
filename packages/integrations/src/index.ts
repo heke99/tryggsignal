@@ -5,3 +5,7 @@ export * from './adapters';
 export * from './vercel-domains';
 export * from './supabase-management';
 export * from './provisioning-orchestrator';
+
+export * from './mapping';
+export * from './transport-adapters';
+export * from './reconciliation';
