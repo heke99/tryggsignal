@@ -4,6 +4,7 @@ begin;
 create temporary table h_ids (k text primary key, v uuid) on commit drop;
 create temporary table h_bigints (k text primary key, v bigint) on commit drop;
 grant select, insert on h_ids, h_bigints to authenticated;
+grant select on h_ids, h_bigints to service_role;
 
 insert into auth.users (id, email, aud, role)
 select gen_random_uuid(), k || '@h.invalid', 'authenticated', 'authenticated'
