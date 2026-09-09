@@ -10,16 +10,17 @@ grant select, insert on g11_ids, g11_text to authenticated;
 -- ---------------------------------------------------------------------------
 -- Control-plane auth audience: one active STAFF + one active EXTERNAL provider.
 -- ---------------------------------------------------------------------------
-insert into platform.tenants (
-  slug, display_name, status, canonical_hostname, auth_configuration_reference, activated_at
+with created_tenant as (
+  insert into platform.tenants (
+    slug, display_name, status, canonical_hostname, auth_configuration_reference, activated_at
+  )
+  values (
+    'g11kommun', 'G11 kommun', 'ACTIVE', 'g11kommun.tryggsignal.se', 'g11-staff-auth', now()
+  )
+  returning id
 )
-values (
-  'g11kommun', 'G11 kommun', 'ACTIVE', 'g11kommun.tryggsignal.se', 'g11-staff-auth', now()
-)
-returning id into temporary table g11_tenant_id;
-
 insert into g11_ids
-select 'tenant', id from g11_tenant_id;
+select 'tenant', id from created_tenant;
 
 insert into platform.tenant_domains (
   tenant_id, hostname, normalized_hostname, domain_type, status, is_canonical, is_fallback,
