@@ -127,6 +127,9 @@ export class GenericFileConnector implements Connector {
     private readonly config: GenericFileConnectorConfig,
     private readonly source: FileSource,
   ) {
+    if (config.capabilities.some((capability) => capability !== 'listCases')) {
+      throw new Error('Generic file connector currently implements only listCases');
+    }
     this.key = config.key;
     this.capabilities = new Set(config.capabilities);
   }
@@ -241,6 +244,9 @@ export class GenericSqlReadConnector implements Connector {
     config: GenericSqlReadConnectorConfig,
     private readonly client: SqlReadClient,
   ) {
+    if (config.capabilities.some((capability) => capability !== 'listCases')) {
+      throw new Error('Generic SQL read connector currently implements only listCases');
+    }
     this.key = config.key;
     this.capabilities = new Set(config.capabilities);
     this.select = validateReadOnlySelect(config.select);
