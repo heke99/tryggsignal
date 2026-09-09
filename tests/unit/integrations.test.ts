@@ -341,6 +341,8 @@ describe('Phase H generic SFTP connector', () => {
       caseNumber: 'SFTP-1',
       mappingVersion: 'h-1',
     });
+  });
+
   it('rejects SFTP paths that escape the configured remote directory', async () => {
     const client: SftpClient = {
       healthCheck: vi.fn().mockResolvedValue(healthy),
