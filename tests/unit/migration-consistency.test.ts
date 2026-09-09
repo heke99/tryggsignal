@@ -162,9 +162,9 @@ describe('reconciliation input contract', () => {
   it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])(
     'cannot report GREEN for matching invalid counts %s',
     (count) => {
-      expect(() =>
-        reconcile({ ...clean, sourceCaseCount: count, targetCaseCount: count }),
-      ).toThrow(RangeError);
+      expect(() => reconcile({ ...clean, sourceCaseCount: count, targetCaseCount: count })).toThrow(
+        RangeError,
+      );
     },
   );
 
