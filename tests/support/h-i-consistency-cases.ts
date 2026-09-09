@@ -90,7 +90,9 @@ export const regressionCases: readonly RegressionCase[] = [
       const items = mapExternalCaseItems([row], caseMapping);
       assert.equal(items[0]?.externalId, row.id);
       assert.equal(items[0]?.sourceHash, sourceHash(row));
-      assert.equal(items[0]?.raw, row);
+      assert.deepEqual(items[0]?.raw, row);
+      assert.notEqual(items[0]?.raw, row);
+      assert.equal(Object.isFrozen(items[0]?.raw), true);
     },
   },
   {
@@ -343,7 +345,9 @@ export const regressionCases: readonly RegressionCase[] = [
     name: 'I: inherited source fields are not captured source data',
     run() {
       const payload = Object.create({ status: 'P' }) as Record<string, unknown>;
-      const result = applyMapping(raw(payload), lookupMapping);
+      // The shared lossless codec rejects custom prototypes before mapping.
+      assert.throws(() => raw(payload), /plain JSON/);
+      const result = applyMapping(raw({}), lookupMapping);
       assert.equal(result.errors[0]?.code, 'UNMAPPED_VALUE');
     },
   },

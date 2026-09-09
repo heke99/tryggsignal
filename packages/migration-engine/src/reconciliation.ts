@@ -34,14 +34,28 @@ export interface ReconciliationReport {
 }
 
 export function reconcile(input: ReconciliationInput): ReconciliationReport {
-  const inputCounts = [
+  for (const count of [
     input.sourceCaseCount,
     input.targetCaseCount,
     input.sourceDocumentCount,
     input.targetDocumentCount,
-  ];
-  if (inputCounts.some((count) => !Number.isSafeInteger(count) || count < 0)) {
-    throw new Error('Migration reconciliation counts must be nonnegative safe integers');
+  ]) {
+    if (!Number.isSafeInteger(count) || count < 0) {
+      throw new RangeError('Reconciliation counts must be nonnegative safe integers');
+    }
+  }
+  for (const findings of [
+    input.missingIds,
+    input.duplicateIds,
+    input.hashMismatchIds,
+    input.brokenRelationIds,
+    input.unmappedStatuses,
+    input.unmappedClassifications,
+    input.orphanDocumentIds,
+  ]) {
+    if (!Array.isArray(findings) || findings.some((value) => typeof value !== 'string')) {
+      throw new TypeError('Reconciliation findings must be arrays of strings');
+    }
   }
   const caseDelta = input.targetCaseCount - input.sourceCaseCount;
   const documentDelta = input.targetDocumentCount - input.sourceDocumentCount;

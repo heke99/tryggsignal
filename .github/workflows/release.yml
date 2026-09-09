@@ -57,7 +57,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: '2.117.0'
       - name: Start disposable Supabase stack
         run: supabase start
       - name: Replay migrations from zero
@@ -119,6 +119,12 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/integration_consistency.sql
       - name: H exact scope and RPC catalog contract
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/h_catalog_contract.sql
+      - name: I migration scope and immutable evidence integration
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/migration_consistency.sql
+      - name: I migration reconciliation SQL and service RPC contract
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/migration_reconciliation_rpc.sql
+      - name: Cross-module schema catalog gate
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/schema_catalog.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
