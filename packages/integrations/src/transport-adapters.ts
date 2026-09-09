@@ -1,14 +1,7 @@
 import { posix as path } from 'node:path';
 import type { Connector, ConnectorCapability, ExternalCase, HealthStatus, Page } from './contract';
-import { ExternalBlockedError } from './contract';
-import {
-  asString,
-  mapExternalCase,
-  mapExternalCaseItems,
-  readPath,
-  sourceHash,
-  type CaseMapping,
-} from './mapping';
+import { assertCapability, ExternalBlockedError } from './contract';
+import { asString, mapExternalCaseItems, readPath, sourceHash, type CaseMapping } from './mapping';
 import { idempotencyKey } from './idempotency';
 
 export interface FileEntry {
@@ -137,6 +130,7 @@ export class GenericFileConnector implements Connector {
   }
 
   async listCases(cursor: string | null): Promise<Page<ExternalCase>> {
+    assertCapability(this, 'listCases');
     const page = await this.source.list(cursor);
     const items: ExternalCase[] = [];
 
@@ -274,7 +268,17 @@ export class GenericSqlReadConnector implements Connector {
     this.key = config.key;
     this.capabilities = new Set(config.capabilities);
     this.select = validateReadOnlySelect(config.select);
-    this.pageSize = Math.min(Math.max(config.pageSize ?? 100, 1), 1000);
+    const pageSize = config.pageSize ?? 100;
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
+      throw new Error('SQL page size must be an integer between 1 and 1000');
+    }
+    if (
+      !/^[A-Za-z_][A-Za-z0-9_]*$/.test(config.caseMapping.externalId) ||
+      config.caseMapping.itemsPath !== undefined
+    ) {
+      throw new Error('SQL mapping requires a flat external-ID column alias and flat result rows');
+    }
+    this.pageSize = pageSize;
     this.mapping = config.caseMapping;
   }
 
@@ -285,17 +289,21 @@ export class GenericSqlReadConnector implements Connector {
   }
 
   async listCases(cursor: string | null): Promise<Page<ExternalCase>> {
-    const offset = cursor === null ? 0 : Number.parseInt(cursor, 10);
+    assertCapability(this, 'listCases');
+    if (cursor !== null && !/^(0|[1-9][0-9]*)$/.test(cursor)) {
+      throw new Error('Invalid SQL read cursor');
+    }
+    const offset = cursor === null ? 0 : Number(cursor);
     if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid SQL read cursor');
 
     const rows = await this.client.query(
-      `select * from (${this.select}) as tryggsignal_source limit $1 offset $2`,
+      `select * from (${this.select}) as tryggsignal_source order by tryggsignal_source."${this.mapping.externalId}" limit $1 offset $2`,
       [this.pageSize, offset],
     );
-    const items = rows.flatMap((row) => {
-      const mapped = mapExternalCase(row, this.mapping);
-      return mapped === null ? [] : [mapped];
-    });
+    if (rows.length > this.pageSize || !Number.isSafeInteger(offset + rows.length)) {
+      throw new Error('SQL source returned an invalid page boundary');
+    }
+    const items = mapExternalCaseItems(rows, this.mapping);
 
     return {
       items,
@@ -388,11 +396,24 @@ export class GenericInboundWebhookConnector implements Connector {
 
     const externalEventId = asString(readPath(request.body, this.config.eventIdPath));
     const eventType = asString(readPath(request.body, this.config.eventTypePath));
-    if (externalEventId === null || eventType === null) {
+    if (
+      externalEventId === null ||
+      eventType === null ||
+      !externalEventId.trim() ||
+      !eventType.trim() ||
+      !connectorInstanceId.trim()
+    ) {
       throw new Error('Inbound webhook has no stable event id or event type');
     }
 
     const mappingVersion = this.config.mappingVersion ?? '1';
+    if (
+      !mappingVersion.trim() ||
+      mappingVersion !== mappingVersion.trim() ||
+      mappingVersion.length > 100
+    ) {
+      throw new Error('Webhook mapping version is invalid');
+    }
     return {
       externalEventId,
       eventType,
@@ -401,7 +422,7 @@ export class GenericInboundWebhookConnector implements Connector {
         entityType: 'event',
         externalId: externalEventId,
         operation: eventType,
-        sourceVersion: mappingVersion,
+        sourceVersion: null, // Mapping release is not logical event identity.
       }),
       sourceHash: sourceHash(request.body),
       mappingVersion,

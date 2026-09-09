@@ -83,13 +83,12 @@ describe('generic REST connector (masterplan 60/62)', () => {
     expect(page.nextCursor).toBe('cursor-2');
   });
 
-  it('drops records without a stable external id instead of inventing one', async () => {
+  it('rejects pages with missing stable identities instead of silently skipping records', async () => {
     const http = vi.fn<HttpClient>().mockResolvedValue({
       status: 200,
       body: { data: { items: [{ arendenummer: 'B-2026-3', rubrik: 'Utan id', status: 'X' }] } },
     });
-    const page = await connector(http).listCases(null);
-    expect(page.items).toEqual([]);
+    await expect(connector(http).listCases(null)).rejects.toThrow(/stable identity/);
   });
 
   it('reports denied access as EXTERNAL_BLOCKED rather than an empty result', async () => {
@@ -97,10 +96,9 @@ describe('generic REST connector (masterplan 60/62)', () => {
     await expect(connector(http).listCases(null)).rejects.toThrow(ExternalBlockedError);
   });
 
-  it('treats a 409 on a keyed write as an already-applied write', async () => {
+  it('does not mistake an unverified HTTP 409 for a successful replay', async () => {
     const http = vi.fn<HttpClient>().mockResolvedValue({ status: 409, body: {} });
-    const result = await connector(http).setStatus('1', 'CLOSED', 'key-1');
-    expect(result).toMatchObject({ deduplicated: true, idempotencyKey: 'key-1' });
+    await expect(connector(http).setStatus('1', 'CLOSED', 'key-1')).rejects.toThrow(/HTTP 409/);
   });
 
   it('refuses a capability the connector does not declare', () => {

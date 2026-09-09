@@ -88,7 +88,9 @@ function canonicalJson(value: unknown, seen: Set<object>, depth: number): string
 }
 
 export function sourceHash(payload: unknown): string {
-  return createHash('sha256').update(canonicalJson(payload, new Set(), 0)).digest('hex');
+  return createHash('sha256')
+    .update(canonicalJson(payload, new Set(), 0))
+    .digest('hex');
 }
 
 export function mapExternalCase(item: unknown, mapping: CaseMapping): ExternalCase | null {
@@ -98,11 +100,17 @@ export function mapExternalCase(item: unknown, mapping: CaseMapping): ExternalCa
     return null;
   }
   const mappingVersion = mapping.mappingVersion ?? '1';
-  if (mappingVersion !== mappingVersion.trim() || mappingVersion.length < 1 || mappingVersion.length > 100) {
+  if (
+    mappingVersion !== mappingVersion.trim() ||
+    mappingVersion.length < 1 ||
+    mappingVersion.length > 100
+  ) {
     throw new Error('Mapping version must contain 1-100 characters without surrounding whitespace');
   }
   const sourceUpdatedAt =
-    mapping.sourceUpdatedAt === undefined ? null : asString(readPath(item, mapping.sourceUpdatedAt));
+    mapping.sourceUpdatedAt === undefined
+      ? null
+      : asString(readPath(item, mapping.sourceUpdatedAt));
   if (sourceUpdatedAt !== null && !Number.isFinite(Date.parse(sourceUpdatedAt))) {
     throw new Error('Source update timestamp is invalid');
   }
@@ -121,12 +129,17 @@ export function mapExternalCase(item: unknown, mapping: CaseMapping): ExternalCa
 }
 
 /** A corrupt page is not an empty page. Reject it before advancing a checkpoint. */
-export function mapExternalCaseItems(payload: unknown, mapping: CaseMapping): readonly ExternalCase[] {
+export function mapExternalCaseItems(
+  payload: unknown,
+  mapping: CaseMapping,
+): readonly ExternalCase[] {
   const rawItems = mapping.itemsPath === undefined ? payload : readPath(payload, mapping.itemsPath);
-  if (!Array.isArray(rawItems)) throw new Error('Integration mapping did not resolve to an item array');
+  if (!Array.isArray(rawItems))
+    throw new Error('Integration mapping did not resolve to an item array');
   return rawItems.map((item, index) => {
     const mapped = mapExternalCase(item, mapping);
-    if (mapped === null) throw new Error(`Integration row ${index} has no stable identity or case number`);
+    if (mapped === null)
+      throw new Error(`Integration row ${index} has no stable identity or case number`);
     return mapped;
   });
 }

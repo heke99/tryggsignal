@@ -14,7 +14,7 @@ import type {
   Page,
   WriteResult,
 } from './contract';
-import { ExternalBlockedError } from './contract';
+import { assertCapability, ExternalBlockedError } from './contract';
 import { asString, mapExternalCaseItems, readPath, type CaseMapping } from './mapping';
 
 export interface HttpResponse {
@@ -92,6 +92,7 @@ export class GenericRestConnector implements Connector {
   }
 
   async listCases(cursor: string | null): Promise<Page<ExternalCase>> {
+    assertCapability(this, 'listCases');
     const url = new URL(`${this.config.baseUrl}/cases`);
     if (cursor !== null) url.searchParams.set('cursor', cursor);
 
@@ -106,7 +107,7 @@ export class GenericRestConnector implements Connector {
         `Access denied by the source system (HTTP ${response.status})`,
       );
     }
-    if (response.status >= 400) {
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(`${this.key}: listCases failed with HTTP ${response.status}`);
     }
 
@@ -121,17 +122,21 @@ export class GenericRestConnector implements Connector {
   }
 
   async setStatus(externalId: string, status: string, key: string): Promise<WriteResult> {
+    assertCapability(this, 'setStatus');
+    if (!externalId.trim() || !status.trim() || !key.trim()) {
+      throw new Error('Status write requires stable identity, status and idempotency key');
+    }
     const response = await this.http({
       method: 'POST',
       url: `${this.config.baseUrl}/cases/${encodeURIComponent(externalId)}/status`,
       headers: { ...this.headers(), 'idempotency-key': key, 'content-type': 'application/json' },
       body: { status },
     });
-    if (response.status >= 400 && response.status !== 409) {
+    if (response.status < 200 || response.status >= 300) {
       throw new Error(`${this.key}: setStatus failed with HTTP ${response.status}`);
     }
-    // 409 from a target that honours the idempotency key means "already applied".
-    return { externalId, idempotencyKey: key, deduplicated: response.status === 409 };
+    // Only a verified source contract can establish a successful replay.
+    return { externalId, idempotencyKey: key, deduplicated: false };
   }
 }
 

@@ -16,11 +16,15 @@ interface EventRow {
   readonly attempt: number;
 }
 
-export async function handleIntegrationInbound(envelope: JobEnvelope, sql: SqlExecutor): Promise<void> {
+export async function handleIntegrationInbound(
+  envelope: JobEnvelope,
+  sql: SqlExecutor,
+): Promise<void> {
   if (envelope.payload === null || typeof envelope.payload !== 'object') {
     throw new PermanentJobError('Payload has no integration_event_id');
   }
-  const value: unknown = (envelope.payload as { integration_event_id?: unknown }).integration_event_id;
+  const value: unknown = (envelope.payload as { integration_event_id?: unknown })
+    .integration_event_id;
   const eventId =
     typeof value === 'string'
       ? value

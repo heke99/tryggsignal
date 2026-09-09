@@ -86,3 +86,7 @@ The SQL adapter rejects non-SELECT statements, multiple statements, common mutat
 known side-effecting functions. This parser is defense in depth, **not** the database authorization
 boundary. Every production SQL-read integration must use a credential whose database grants are
 read-only on an explicitly approved view/schema.
+
+## Consistency contract
+
+See `data-contracts.md` for per-table ownership, composite authority constraints, index coverage, strict canonical hashing, RPC validation and the distinction between receipt and canonical application.

@@ -40,7 +40,11 @@ export function reconcileCases(
   let duplicateSourceCount = 0;
 
   for (const item of sourceCases) {
-    if (!item.externalId.trim() || !/^[a-f0-9]{64}$/.test(item.sourceHash) || !item.mappingVersion.trim()) {
+    if (
+      !item.externalId.trim() ||
+      !/^[a-f0-9]{64}$/.test(item.sourceHash) ||
+      !item.mappingVersion.trim()
+    ) {
       throw new Error('Source reconciliation row has invalid canonical provenance');
     }
     if (sourceById.has(item.externalId)) {
@@ -52,7 +56,9 @@ export function reconcileCases(
   }
   for (const item of recorded) {
     if (!item.externalId.trim() || recordedById.has(item.externalId)) {
-      throw new Error('Tracked external identities must be nonempty and unique within the connector snapshot');
+      throw new Error(
+        'Tracked external identities must be nonempty and unique within the connector snapshot',
+      );
     }
     recordedById.set(item.externalId, item);
   }
