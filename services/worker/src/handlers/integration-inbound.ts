@@ -1,33 +1,34 @@
 /**
- * Masterplan 67: an inbound integration event is processed exactly once, and a
- * failure is recorded on the event rather than lost.
- *
- * `integration.sweep_retries` enqueues the event id; this handler is what moves
- * the event out of RECEIVED/FAILED. The connector that would interpret the
- * payload is per-vendor and does not exist yet (EB-06), so the handler does the
- * part that is ours — validating the event exists, is not already processed, and
- * belongs to the tenant in the envelope — and leaves the payload untouched.
+ * Receipt is not canonical application. A transport can authenticate and persist
+ * an event without having a verified domain adapter capable of applying it.
+ * Until that adapter's transaction (canonical write + provenance + audit + event
+ * completion) exists, leave the receipt untouched and surface EB-06 in the queue.
  */
-import { PermanentJobError } from '../errors';
+import { ExternalBlockedError, PermanentJobError } from '../errors';
 import type { JobEnvelope } from '../envelope';
 import type { SqlExecutor } from '../pgmq-client';
 
 interface EventRow {
-  id: string;
-  status: string;
-  authority_id: string | null;
-  connector_instance_id: string;
-  attempt: number;
+  readonly id: string;
+  readonly status: string;
+  readonly authority_id: string | null;
+  readonly connector_instance_id: string;
+  readonly attempt: number;
 }
 
-export async function handleIntegrationInbound(
-  envelope: JobEnvelope,
-  sql: SqlExecutor,
-): Promise<void> {
-  const payload = envelope.payload as { integration_event_id?: number | string };
-  const eventId = payload.integration_event_id;
-  if (eventId === undefined || eventId === null) {
+export async function handleIntegrationInbound(envelope: JobEnvelope, sql: SqlExecutor): Promise<void> {
+  if (envelope.payload === null || typeof envelope.payload !== 'object') {
     throw new PermanentJobError('Payload has no integration_event_id');
+  }
+  const value: unknown = (envelope.payload as { integration_event_id?: unknown }).integration_event_id;
+  const eventId =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'number' && Number.isSafeInteger(value)
+        ? String(value)
+        : '';
+  if (!/^[1-9][0-9]{0,18}$/.test(eventId) || BigInt(eventId) > 9223372036854775807n) {
+    throw new PermanentJobError('Payload has no valid integration_event_id');
   }
 
   const { rows } = await sql.query<EventRow>(
@@ -37,22 +38,22 @@ export async function handleIntegrationInbound(
   );
   const event = rows[0];
   if (event === undefined) {
-    // The event was removed. Replaying it can never succeed.
-    throw new PermanentJobError(`Integration event ${String(eventId)} no longer exists`);
+    throw new PermanentJobError(`Integration event ${eventId} no longer exists`);
   }
-
-  // The envelope carries the connector instance as its tenant context. A job
-  // that names a different one is not this event's job.
-  if (event.connector_instance_id !== envelope.tenantContext) {
-    throw new PermanentJobError(`Job tenant context does not match the event's connector instance`);
+  if (
+    event.connector_instance_id !== envelope.tenantContext ||
+    envelope.authorityContext === null ||
+    event.authority_id !== envelope.authorityContext
+  ) {
+    throw new PermanentJobError('Job scope does not match the integration event');
   }
-
+  // Preserve legitimate completions made by a verified application transaction.
   if (event.status === 'PROCESSED') return;
-
-  await sql.query(
-    `update integration.integration_events
-     set status = 'PROCESSED', processed_at = now(), error = null, next_retry_at = null
-     where id = $1`,
-    [eventId],
+  if (!['RECEIVED', 'FAILED'].includes(event.status)) {
+    throw new PermanentJobError('Integration event is not eligible for processing');
+  }
+  throw new ExternalBlockedError(
+    'EB-06',
+    'No verified canonical application adapter is configured; receipt remains unprocessed',
   );
 }
