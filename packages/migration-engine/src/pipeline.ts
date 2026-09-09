@@ -106,7 +106,14 @@ export interface MappedObject {
 function read(payload: unknown, path: string): unknown {
   let current = payload;
   for (const segment of path.split('.')) {
-    if (current === null || typeof current !== 'object') return undefined;
+    if (
+      !segment ||
+      ['__proto__', 'constructor', 'prototype'].includes(segment) ||
+      current === null ||
+      typeof current !== 'object' ||
+      !Object.prototype.hasOwnProperty.call(current, segment)
+    )
+      return undefined;
     current = (current as Record<string, unknown>)[segment];
   }
   return current;
@@ -119,6 +126,9 @@ export function applyMapping(raw: RawObject, mapping: MappingVersion): MappedObj
   const errors: { field: string; code: string; message: string }[] = [];
 
   for (const rule of mapping.rules) {
+    if (!rule.to.trim() || ['__proto__', 'constructor', 'prototype'].includes(rule.to)) {
+      throw new Error('Migration mapping has an invalid target field');
+    }
     switch (rule.kind) {
       case 'constant':
         canonical[rule.to] = rule.value;
@@ -129,7 +139,11 @@ export function applyMapping(raw: RawObject, mapping: MappingVersion): MappedObj
       case 'lookup': {
         const source = read(raw.rawPayload, rule.from);
         const key = typeof source === 'string' ? source : String(source ?? '');
-        const mapped = rule.table[key];
+        // Only explicitly configured entries are mappings; inherited members
+        // must take the ordinary unmapped-value path.
+        const mapped = Object.prototype.hasOwnProperty.call(rule.table, key)
+          ? rule.table[key]
+          : undefined;
         if (mapped === undefined) {
           if (rule.onMissing === 'ERROR') {
             errors.push({

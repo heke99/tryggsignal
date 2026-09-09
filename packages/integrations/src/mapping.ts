@@ -136,10 +136,16 @@ export function mapExternalCaseItems(
   const rawItems = mapping.itemsPath === undefined ? payload : readPath(payload, mapping.itemsPath);
   if (!Array.isArray(rawItems))
     throw new Error('Integration mapping did not resolve to an item array');
-  return rawItems.map((item, index) => {
-    const mapped = mapExternalCase(item, mapping);
+  const items: ExternalCase[] = [];
+  for (let index = 0; index < rawItems.length; index += 1) {
+    // Array.map skips holes: a malformed collection must not advance a cursor.
+    if (!Object.prototype.hasOwnProperty.call(rawItems, index)) {
+      throw new Error(`Integration collection contains a sparse row at ${index}`);
+    }
+    const mapped = mapExternalCase(rawItems[index], mapping);
     if (mapped === null)
       throw new Error(`Integration row ${index} has no stable identity or case number`);
-    return mapped;
-  });
+    items.push(mapped);
+  }
+  return items;
 }

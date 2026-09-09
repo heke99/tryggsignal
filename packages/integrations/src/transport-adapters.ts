@@ -31,6 +31,33 @@ export interface GenericFileConnectorConfig {
   readonly csvDelimiter?: string;
 }
 
+/** Validate the whole listing before any reads or cursor advancement. */
+function assertFilePage(page: FilePage, cursor: string | null): void {
+  if (page === null || typeof page !== 'object' || !Array.isArray(page.items)) {
+    throw new Error('File source returned an invalid page');
+  }
+  if (
+    page.nextCursor !== null &&
+    (typeof page.nextCursor !== 'string' || !page.nextCursor.trim() || page.nextCursor === cursor)
+  ) {
+    throw new Error('File source returned an invalid or non-advancing cursor');
+  }
+  for (let index = 0; index < page.items.length; index += 1) {
+    const entry = page.items[index];
+    if (
+      !Object.prototype.hasOwnProperty.call(page.items, index) ||
+      entry === null ||
+      typeof entry !== 'object' ||
+      typeof entry.path !== 'string' ||
+      !entry.path.trim() ||
+      (entry.sizeBytes !== undefined &&
+        (!Number.isSafeInteger(entry.sizeBytes) || entry.sizeBytes < 0))
+    ) {
+      throw new Error(`File source returned an invalid entry at ${index}`);
+    }
+  }
+}
+
 function decode(input: string | Uint8Array): string {
   return typeof input === 'string'
     ? input
@@ -148,12 +175,17 @@ export class GenericFileConnector implements Connector {
   async listCases(cursor: string | null): Promise<Page<ExternalCase>> {
     assertCapability(this, 'listCases');
     const page = await this.source.list(cursor);
+    assertFilePage(page, cursor);
     const items: ExternalCase[] = [];
 
     for (const entry of page.items) {
       const raw = await this.source.read(entry.path);
       const payload = parseFilePayload(raw, this.config.format, this.config.csvDelimiter ?? ',');
-      items.push(...mapExternalCaseItems(payload, this.config.caseMapping));
+      // Do not spread an unbounded file into function arguments (V8 stack limit).
+      // This retains the existing buffered contract; it does not claim streaming.
+      for (const item of mapExternalCaseItems(payload, this.config.caseMapping)) {
+        items.push(item);
+      }
     }
 
     return { items, nextCursor: page.nextCursor };
@@ -196,6 +228,7 @@ export class GenericSftpConnector implements Connector {
       healthCheck: () => client.healthCheck(),
       list: async (cursor) => {
         const page = await client.list(config.remoteDirectory, cursor);
+        assertFilePage(page, cursor);
         return {
           ...page,
           items: page.items.map((entry) => ({
@@ -414,6 +447,11 @@ export class GenericInboundWebhookConnector implements Connector {
       throw new ExternalBlockedError(this.key, 'Inbound webhook signature/authentication failed');
     }
 
+    // The receipt RPC accepts a JSON object, never an array/scalar. Hashing an
+    // array is valid elsewhere but must not imply that it is a valid receipt.
+    if (request.body === null || typeof request.body !== 'object' || Array.isArray(request.body)) {
+      throw new Error('Inbound webhook payload must be a JSON object');
+    }
     const externalEventId = asString(readPath(request.body, this.config.eventIdPath));
     const eventType = asString(readPath(request.body, this.config.eventTypePath));
     if (

@@ -28,7 +28,7 @@ Every table in the integration schema is checked for a primary key, RLS and full
 
 All collection readers reject malformed pages and missing identities before advancing a cursor. Invalid records are not silently discarded, and a missing collection is not treated as an empty source.
 
-The pending H hash format serializes plain JSON with recursively sorted, locale-independent UTF-16 object-key ordering. Array order is significant. Unsupported values (undefined, non-finite or unsafe integer numbers, bigint, class instances, sparse arrays and cycles) are rejected rather than silently coerced. Source identifiers above JavaScript's safe integer range must be strings. This is a project-specific JSON hash format, **not** a claim of RFC 8785/JCS compliance. Mapping versions and historical hashes must not be silently rewritten on a future deployed format change.
+The H hash format serializes plain JSON with recursively sorted, locale-independent UTF-16 object-key ordering. Array order is significant. Unsupported values (undefined, non-finite or unsafe integer numbers, bigint, class instances, sparse arrays and cycles) are rejected rather than silently coerced. Source identifiers above JavaScript's safe integer range must be strings. This is a project-specific JSON hash format, **not** a claim of RFC 8785/JCS compliance. Mapping versions and historical hashes must not be silently rewritten on a future deployed format change.
 
 SQL-read pages use an explicit outer order by the mapped external-ID column and strict integer cursors/page sizes. A production transport must hold a consistent source snapshot and use a database-enforced read-only account on approved views; keyword checks are defense in depth, not SQL authorization. SFTP lexical confinement requires a trusted/chrooted server-side export directory; it does not claim protection against a remote server changing symlinks between checks.
 
@@ -54,7 +54,7 @@ All counters are nonnegative, non-null integers. `GREEN` is possible only when a
 
 ## Rollout and verification
 
-The H migration remains unmerged while this review is in progress. Composite FKs validate pre-existing rows; inconsistent historical scopes block rollout instead of being repaired by guessing, deleted, or left `NOT VALID`. No production database is modified by these repository changes. Re-run the full clean Supabase replay, previous G gates, H gate, consistency gate, source verification and Playwright on the exact PR head before merge.
+The H migration was merged in PR #22 (baseline `aa7ad5fe683c1e717864b115adfc7e414eb262db`). Follow-up consistency corrections are separate changes; historical migrations are not rewritten. Composite FKs validate pre-existing rows; inconsistent historical scopes block rollout instead of being repaired by guessing, deleted, or left `NOT VALID`. No production database is modified by these repository changes. Re-run the full clean Supabase replay, previous G gates, H gate, consistency gate, source verification and Playwright on the exact PR head before merge.
 
 ## Immutable receipt and history
 

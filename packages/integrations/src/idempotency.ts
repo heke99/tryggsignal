@@ -56,6 +56,9 @@ export function inboundEventKey(parts: {
   const values = [parts.connectorInstanceId, parts.externalEventId, parts.eventType];
   const limits = [500, 500, 200];
   if (
+    // Postgres length(text) counts characters, not UTF-16 code units. The RPC
+    // requires at least two characters, including for supplementary Unicode.
+    [...parts.eventType].length < 2 ||
     values.some(
       (value, index) =>
         !value.trim() ||
