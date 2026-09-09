@@ -2,6 +2,44 @@
 -- Adds transport-neutral provenance, idempotent inbound receipt and durable
 -- connector reconciliation without exposing raw payloads to browser roles.
 
+alter table integration.connectors
+  drop constraint if exists connectors_connector_kind_check;
+
+alter table integration.connectors
+  add constraint connectors_connector_kind_check
+  check (connector_kind in (
+    'GENERIC_REST',
+    'GENERIC_SOAP',
+    'GENERIC_FILE',
+    'GENERIC_SFTP',
+    'GENERIC_SQL',
+    'GENERIC_WEBHOOK',
+    'VENDOR',
+    'NATIONAL'
+  ));
+
+insert into integration.connectors (
+  key, name, connector_kind, capabilities, contract_version
+)
+values
+  ('generic-rest', 'Generic REST/OpenAPI', 'GENERIC_REST',
+   '["listCases","setStatus"]'::jsonb, '1'),
+  ('generic-file', 'Generic file import', 'GENERIC_FILE',
+   '["listCases"]'::jsonb, '1'),
+  ('generic-sftp', 'Generic SFTP import', 'GENERIC_SFTP',
+   '["listCases"]'::jsonb, '1'),
+  ('generic-sql-read', 'Generic SQL read', 'GENERIC_SQL',
+   '["listCases"]'::jsonb, '1'),
+  ('generic-soap', 'Generic SOAP slot', 'GENERIC_SOAP',
+   '[]'::jsonb, '1'),
+  ('generic-webhook', 'Generic inbound webhook', 'GENERIC_WEBHOOK',
+   '[]'::jsonb, '1')
+on conflict (key) do update
+set name = excluded.name,
+    connector_kind = excluded.connector_kind,
+    capabilities = excluded.capabilities,
+    contract_version = excluded.contract_version;
+
 alter table integration.external_records
   add column mapping_version text not null default '1'
     check (length(trim(mapping_version)) between 1 and 100);
