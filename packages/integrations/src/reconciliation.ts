@@ -26,30 +26,42 @@ export interface ReconciliationResult {
   readonly issues: readonly ReconciliationIssue[];
 }
 
+/** Compare complete snapshots from ONE connector and ONE entity type.
+ * This is provenance parity, not proof that a live vendor is available, and not
+ * a replacement for canonical FK/link validation at the import boundary.
+ */
 export function reconcileCases(
   sourceCases: readonly ExternalCase[],
   recorded: readonly RecordedExternalRecord[],
 ): ReconciliationResult {
   const issues: ReconciliationIssue[] = [];
   const sourceById = new Map<string, ExternalCase>();
+  const recordedById = new Map<string, RecordedExternalRecord>();
   let duplicateSourceCount = 0;
 
   for (const item of sourceCases) {
+    if (!item.externalId.trim() || !/^[a-f0-9]{64}$/.test(item.sourceHash) || !item.mappingVersion.trim()) {
+      throw new Error('Source reconciliation row has invalid canonical provenance');
+    }
     if (sourceById.has(item.externalId)) {
       duplicateSourceCount += 1;
       issues.push({ externalId: item.externalId, kind: 'DUPLICATE_SOURCE' });
-      continue;
+    } else {
+      sourceById.set(item.externalId, item);
     }
-    sourceById.set(item.externalId, item);
+  }
+  for (const item of recorded) {
+    if (!item.externalId.trim() || recordedById.has(item.externalId)) {
+      throw new Error('Tracked external identities must be nonempty and unique within the connector snapshot');
+    }
+    recordedById.set(item.externalId, item);
   }
 
-  const recordedById = new Map(recorded.map((item) => [item.externalId, item] as const));
   let unchangedCount = 0;
   let newCount = 0;
   let changedCount = 0;
   let missingInternalCount = 0;
   let missingSourceCount = 0;
-
   for (const [externalId, source] of sourceById) {
     const existing = recordedById.get(externalId);
     if (existing === undefined) {
@@ -57,7 +69,7 @@ export function reconcileCases(
       issues.push({ externalId, kind: 'NEW' });
       continue;
     }
-    if (existing.internalId === null) {
+    if (existing.internalId === null || !existing.internalId.trim()) {
       missingInternalCount += 1;
       issues.push({ externalId, kind: 'MISSING_INTERNAL' });
     }
@@ -72,14 +84,12 @@ export function reconcileCases(
       unchangedCount += 1;
     }
   }
-
-  for (const item of recorded) {
-    if (!sourceById.has(item.externalId)) {
+  for (const externalId of recordedById.keys()) {
+    if (!sourceById.has(externalId)) {
       missingSourceCount += 1;
-      issues.push({ externalId: item.externalId, kind: 'MISSING_SOURCE' });
+      issues.push({ externalId, kind: 'MISSING_SOURCE' });
     }
   }
-
   return {
     sourceCount: sourceCases.length,
     recordedCount: recorded.length,
@@ -89,14 +99,7 @@ export function reconcileCases(
     missingInternalCount,
     missingSourceCount,
     duplicateSourceCount,
-    result:
-      duplicateSourceCount === 0 &&
-      newCount === 0 &&
-      changedCount === 0 &&
-      missingInternalCount === 0 &&
-      missingSourceCount === 0
-        ? 'GREEN'
-        : 'RED',
+    result: issues.length === 0 ? 'GREEN' : 'RED',
     issues,
   };
 }
