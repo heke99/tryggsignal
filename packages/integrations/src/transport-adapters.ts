@@ -228,7 +228,7 @@ function validateReadOnlySelect(statement: string): string {
   ) {
     throw new Error('Generic SQL adapter rejected a mutating SQL keyword');
   }
-  if (/\b(pg_sleep|dblink|lo_import|lo_export)\s*\(/i.test(normalized)) {
+  if (/\b(pg_sleep|pg_advisory_lock|pg_advisory_xact_lock|dblink|lo_import|lo_export|nextval|setval|set_config)\s*\(/i.test(normalized)) {
     throw new Error('Generic SQL adapter rejected a side-effecting SQL function');
   }
   return normalized;
