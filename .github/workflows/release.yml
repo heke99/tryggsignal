@@ -114,6 +114,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/gate_g_building_permit.sql
       - name: H generic integration adapters
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_adapters.sql
+      - name: H schema canonical RPC and index consistency
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/integration_consistency.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
