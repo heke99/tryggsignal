@@ -43,7 +43,11 @@ function canonicalize(value: unknown): unknown {
 }
 
 export function sourceHash(payload: unknown): string {
-  return createHash('sha256').update(JSON.stringify(canonicalize(payload))).digest('hex');
+  const serialized = JSON.stringify(canonicalize(payload));
+  if (serialized === undefined) {
+    throw new Error('Integration payload cannot be serialized deterministically');
+  }
+  return createHash('sha256').update(serialized).digest('hex');
 }
 
 export function mapExternalCase(item: unknown, mapping: CaseMapping): ExternalCase | null {
