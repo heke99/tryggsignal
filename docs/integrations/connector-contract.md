@@ -33,7 +33,6 @@ Check the official documentation, API version, authentication, test environment,
 license, caching rights, and whether the object is an original or only a search reference. Record the
 answers next to the adapter.
 
-
 ## Generic transport adapters — Phase H
 
 All generic transports map through the same `CaseMapping` and emit canonical records carrying:
@@ -46,14 +45,14 @@ All generic transports map through the same `CaseMapping` and emit canonical rec
 
 Implemented transport contracts:
 
-| Transport | Adapter | Current generic capabilities | Notes |
-| --- | --- | --- | --- |
-| REST/OpenAPI | `GenericRestConnector` | `listCases`, `setStatus` | HTTP mapping only; no vendor fields in core. |
-| File | `GenericFileConnector` | `listCases` | JSON array, JSONL and CSV through an injected file source. |
-| SFTP | `GenericSftpConnector` | `listCases` | Uses an injected SFTP client; credentials remain secret references. |
-| SQL read | `GenericSqlReadConnector` | `listCases` | Exactly one SELECT. Production credentials **must** also be database-level read-only. |
-| SOAP | `GenericSoapConnectorSlot` | none until verified | Fails `EXTERNAL_BLOCKED` until WSDL/auth/operations are verified. |
-| Webhook | `GenericInboundWebhookConnector` | inbound receipt | Signature/auth verifier is injected; stable event id/type are required. |
+| Transport    | Adapter                          | Current generic capabilities | Notes                                                                                 |
+| ------------ | -------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------- |
+| REST/OpenAPI | `GenericRestConnector`           | `listCases`, `setStatus`     | HTTP mapping only; no vendor fields in core.                                          |
+| File         | `GenericFileConnector`           | `listCases`                  | JSON array, JSONL and CSV through an injected file source.                            |
+| SFTP         | `GenericSftpConnector`           | `listCases`                  | Uses an injected SFTP client; credentials remain secret references.                   |
+| SQL read     | `GenericSqlReadConnector`        | `listCases`                  | Exactly one SELECT. Production credentials **must** also be database-level read-only. |
+| SOAP         | `GenericSoapConnectorSlot`       | none until verified          | Fails `EXTERNAL_BLOCKED` until WSDL/auth/operations are verified.                     |
+| Webhook      | `GenericInboundWebhookConnector` | inbound receipt              | Signature/auth verifier is injected; stable event id/type are required.               |
 
 A generic adapter rejects capabilities it does not actually implement.
 

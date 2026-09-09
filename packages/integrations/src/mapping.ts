@@ -61,9 +61,7 @@ export function mapExternalCase(item: unknown, mapping: CaseMapping): ExternalCa
     title: asString(readPath(item, mapping.title)) ?? caseNumber,
     status: asString(readPath(item, mapping.status)) ?? 'UNKNOWN',
     sourceVersion:
-      mapping.sourceVersion === undefined
-        ? null
-        : asString(readPath(item, mapping.sourceVersion)),
+      mapping.sourceVersion === undefined ? null : asString(readPath(item, mapping.sourceVersion)),
     sourceUpdatedAt:
       mapping.sourceUpdatedAt === undefined
         ? null
@@ -78,8 +76,7 @@ export function mapExternalCaseItems(
   payload: unknown,
   mapping: CaseMapping,
 ): readonly ExternalCase[] {
-  const rawItems =
-    mapping.itemsPath === undefined ? payload : readPath(payload, mapping.itemsPath);
+  const rawItems = mapping.itemsPath === undefined ? payload : readPath(payload, mapping.itemsPath);
   if (!Array.isArray(rawItems)) return [];
   return rawItems.flatMap((item) => {
     const mapped = mapExternalCase(item, mapping);

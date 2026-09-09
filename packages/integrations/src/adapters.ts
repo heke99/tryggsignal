@@ -15,12 +15,7 @@ import type {
   WriteResult,
 } from './contract';
 import { ExternalBlockedError } from './contract';
-import {
-  asString,
-  mapExternalCaseItems,
-  readPath,
-  type CaseMapping,
-} from './mapping';
+import { asString, mapExternalCaseItems, readPath, type CaseMapping } from './mapping';
 
 export interface HttpResponse {
   readonly status: number;

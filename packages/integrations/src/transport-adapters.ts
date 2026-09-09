@@ -1,10 +1,4 @@
-import type {
-  Connector,
-  ConnectorCapability,
-  ExternalCase,
-  HealthStatus,
-  Page,
-} from './contract';
+import type { Connector, ConnectorCapability, ExternalCase, HealthStatus, Page } from './contract';
 import { ExternalBlockedError } from './contract';
 import {
   asString,
@@ -44,7 +38,9 @@ export interface GenericFileConnectorConfig {
 }
 
 function decode(input: string | Uint8Array): string {
-  return typeof input === 'string' ? input : new TextDecoder('utf-8', { fatal: true }).decode(input);
+  return typeof input === 'string'
+    ? input
+    : new TextDecoder('utf-8', { fatal: true }).decode(input);
 }
 
 function parseCsvLine(line: string, delimiter: string): readonly string[] {
@@ -85,7 +81,8 @@ function parseCsv(text: string, delimiter: string): readonly Record<string, stri
   if (lines.length === 0) return [];
 
   const headers = parseCsvLine(lines[0] ?? '', delimiter).map((header) => header.trim());
-  if (headers.some((header) => header.length === 0)) throw new Error('CSV contains an empty header');
+  if (headers.some((header) => header.length === 0))
+    throw new Error('CSV contains an empty header');
   if (new Set(headers).size !== headers.length) throw new Error('CSV contains duplicate headers');
 
   return lines.slice(1).map((line) => {
@@ -228,7 +225,11 @@ function validateReadOnlySelect(statement: string): string {
   ) {
     throw new Error('Generic SQL adapter rejected a mutating SQL keyword');
   }
-  if (/\b(pg_sleep|pg_advisory_lock|pg_advisory_xact_lock|dblink|lo_import|lo_export|nextval|setval|set_config)\s*\(/i.test(normalized)) {
+  if (
+    /\b(pg_sleep|pg_advisory_lock|pg_advisory_xact_lock|dblink|lo_import|lo_export|nextval|setval|set_config)\s*\(/i.test(
+      normalized,
+    )
+  ) {
     throw new Error('Generic SQL adapter rejected a side-effecting SQL function');
   }
   return normalized;
@@ -357,10 +358,7 @@ export class GenericInboundWebhookConnector implements Connector {
     };
   }
 
-  async receive(
-    connectorInstanceId: string,
-    request: WebhookRequest,
-  ): Promise<WebhookEvent> {
+  async receive(connectorInstanceId: string, request: WebhookRequest): Promise<WebhookEvent> {
     if (!(await this.verify(request))) {
       throw new ExternalBlockedError(this.key, 'Inbound webhook signature/authentication failed');
     }

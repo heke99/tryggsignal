@@ -167,7 +167,6 @@ describe('field ownership (masterplan 68)', () => {
   });
 });
 
-
 const genericMapping = {
   externalId: 'id',
   caseNumber: 'case_number',
@@ -400,7 +399,7 @@ describe('Phase H generic SQL-read connector', () => {
         new GenericSqlReadConnector(
           {
             key: 'unsafe-sql',
-            select: 'update cases set status = \'CLOSED\' returning *',
+            select: "update cases set status = 'CLOSED' returning *",
             caseMapping: genericMapping,
             capabilities: ['listCases'],
           },
