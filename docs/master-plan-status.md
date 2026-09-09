@@ -67,7 +67,7 @@ EB-01/EB-02 remain.
 | P9 Rule Engine                      | IN_PROGRESS      | Deterministic/effective-dated engine with evidence is tested; representative municipal ruleset still needed.                                                                                             |
 | P10 Queues / Jobs                   | GREEN            | Ten durable PGMQ queues, runnable worker, idempotency, retries, heartbeat, dead letters and run log; worker integration GREEN.                                                                           |
 | P11 Search                          | GREEN            | Scoped read model, query builder and trigger-maintained search index; RLS/runtime integration GREEN.                                                                                                     |
-| P12 Generic Integration Framework   | IN_PROGRESS      | Phase H implementation is complete on PR #22; final clean replay/H gate must pass on the exact merge head before this phase becomes GREEN.                                                               |
+| P12 Generic Integration Framework   | GREEN            | Phase H verifies REST, File, SFTP and SQL-read adapters, SOAP/webhook slots, canonical mapping/provenance, duplicate receipt, reconciliation, RLS, health and SERVICE audit in clean replay.              |
 | P13 Migration Engine                | IN_PROGRESS      | Raw capture, mapping and reconciliation exist; golden dataset run not completed.                                                                                                                         |
 | P14 National Source Registry        | IN_PROGRESS      | Source/licence/cache/freshness registry exists; no real national source is GREEN yet.                                                                                                                    |
 | P15 Lantmäteriet                    | EXTERNAL_BLOCKED | EB-03.                                                                                                                                                                                                   |
@@ -99,7 +99,7 @@ EB-01/EB-02 remain.
 
 ## Phase H generic integration completion
 
-**Phase H / P12 implementation is complete but not yet GREEN on the current PR head.** The generic connector layer has one canonical mapping/provenance
+**Phase H / P12 is GREEN.** The generic connector layer has one canonical mapping/provenance
 contract across REST, File, SFTP and SQL-read. SOAP remains an explicit capability-empty slot until a
 verified WSDL/auth contract exists, while inbound webhook events use the same idempotent durable
 receipt boundary.
@@ -150,7 +150,7 @@ later/global gates.
 
 ## What is still required for MASTERPLAN V3 Global DoD
 
-Phase H remains IN_PROGRESS until PR #22 passes its exact-head clean replay and release gate. After that evidence exists, the corrected implementation sequence continues at I, followed by J → K → L → M → N → O → P → Q → T.
+The corrected implementation sequence is complete through H. The next planned work begins at I, followed by J → K → L → M → N → O → P → Q → T.
 
 Global DoD still requires, among other things:
 
