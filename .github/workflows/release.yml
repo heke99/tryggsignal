@@ -112,6 +112,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/citizen_portal.sql
       - name: Gate G complete building permit
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/gate_g_building_permit.sql
+      - name: Phase H generic integration framework
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_framework.sql
       - name: H generic integration adapters
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_adapters.sql
       - name: Branding and provisioning integration
