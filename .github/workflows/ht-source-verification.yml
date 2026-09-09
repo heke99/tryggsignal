@@ -1,0 +1,31 @@
+name: H-T source verification
+
+on:
+  push:
+    branches: [fix/h-t-schema-api-sync-20260909]
+    paths: [.github/workflows/ht-source-verification.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export tracked source only
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          git rev-parse HEAD > artifacts/commit.txt
+          git archive --format=tar --output=artifacts/source.tar HEAD
+          sha256sum artifacts/source.tar > artifacts/source.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ht-source-${{ github.sha }}
+          path: artifacts/
+          retention-days: 1
+          if-no-files-found: error
