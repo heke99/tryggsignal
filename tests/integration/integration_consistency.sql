@@ -53,6 +53,16 @@ begin
   );
   if v_missing is not null then raise exception 'Connector/authority FK missing: %', v_missing; end if;
 
+  if not exists (
+    select 1 from pg_constraint f
+    where f.conrelid = 'integration.reconciliation_runs'::regclass
+      and f.conname = 'reconciliation_connector_scope_fk'
+      and f.confrelid = 'integration.connector_instances'::regclass
+      and f.confdeltype = 'r' and f.convalidated
+  ) then
+    raise exception 'Connector deletion must RESTRICT removal of reconciliation history';
+  end if;
+
   if has_column_privilege('authenticated','integration.integration_events','payload','SELECT')
      or has_column_privilege('authenticated','integration.integration_events','error','SELECT')
      or has_table_privilege('authenticated','integration.external_records','SELECT') then
@@ -187,6 +197,21 @@ begin
   end if;
 end;
 $counts$;
+
+-- A connector delete must not silently cascade through retained history.
+-- Exercise this as owner: RLS/grants must not be the reason deletion fails.
+do $retention$
+declare v_instance uuid := (select id from hq_ids where key='instance');
+begin
+  perform pg_temp.hq_reject(format(
+    'delete from integration.connector_instances where id=%L',v_instance),'23503');
+  if not exists (select 1 from integration.connector_instances where id=v_instance)
+     or (select count(*) from integration.reconciliation_runs where connector_instance_id=v_instance) <> 1
+     or (select count(*) from integration.integration_events where connector_instance_id=v_instance) <> 1 then
+    raise exception 'Rejected connector deletion changed retained history';
+  end if;
+end;
+$retention$;
 
 -- Inbound APIs reject outbound/disabled connectors; no fake recovery of disabled health.
 update integration.connector_instances set direction='OUTBOUND'
