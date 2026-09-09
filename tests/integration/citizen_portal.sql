@@ -73,7 +73,8 @@ begin
 
   begin
     insert into platform.tenant_auth_configurations (
-      tenant_id, reference, audience, kind, display_name, environment, enabled
+      tenant_id, reference, audience, kind, display_name,
+      credential_reference, environment, enabled
     )
     values (
       (select v from g11_ids where k='tenant'),
@@ -81,6 +82,7 @@ begin
       'EXTERNAL',
       'OIDC',
       'Duplicate external',
+      'secret/g11-external-duplicate',
       'TEST',
       true
     );
