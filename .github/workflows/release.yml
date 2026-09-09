@@ -41,6 +41,11 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: node scripts/sql-guard.mjs
+      - name: Show formatting differences on failure
+        if: failure()
+        run: |
+          pnpm exec prettier --write packages/domain/src/json-source.ts packages/domain/src/index.ts packages/integrations/src/mapping.ts packages/migration-engine/src/pipeline.ts packages/migration-engine/src/reconciliation.ts tests/unit/migration-consistency.test.ts docs/migration/consistency-review.md .github/workflows/release.yml
+          git diff -- packages/domain/src packages/integrations/src/mapping.ts packages/migration-engine/src tests/unit/migration-consistency.test.ts docs/migration/consistency-review.md .github/workflows/release.yml
 
   database:
     name: migration replay / RLS / integration
@@ -73,7 +78,6 @@ jobs:
           service_role_key="$(printf '%s\n' "$status" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')"
           if [ -z "$db_url" ] || [ -z "$api_url" ] || [ -z "$service_role_key" ]; then
             echo "Could not resolve local Supabase runtime credentials" >&2
-            printf '%s\n' "$status" >&2
             exit 1
           fi
           echo "DB_URL=$db_url" >> "$GITHUB_ENV"
@@ -116,6 +120,10 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_adapters.sql
       - name: H schema canonical RPC and index consistency
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/integration_consistency.sql
+      - name: I migration scope raw evidence and reconciliation
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/migration_consistency.sql
+      - name: Cross-module schema catalog
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/schema_catalog.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
