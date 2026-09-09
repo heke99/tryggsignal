@@ -1,0 +1,36 @@
+name: H Format Apply
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:write
+      - name: Commit formatter output
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/api/integration-catalog.md docs/integrations/connector-contract.md packages/integrations/src/adapters.ts packages/integrations/src/mapping.ts packages/integrations/src/transport-adapters.ts tests/unit/integrations.test.ts
+          git commit -m "style(h): apply repository formatting"
+          git push origin HEAD:${{ github.head_ref }}
