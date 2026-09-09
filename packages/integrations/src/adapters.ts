@@ -52,6 +52,13 @@ export class GenericRestConnector implements Connector {
     private readonly config: RestConnectorConfig,
     private readonly http: HttpClient,
   ) {
+    const supported = new Set<ConnectorCapability>(['listCases', 'setStatus']);
+    const unsupported = config.capabilities.filter((capability) => !supported.has(capability));
+    if (unsupported.length > 0) {
+      throw new Error(
+        `Generic REST connector does not implement declared capabilities: ${unsupported.join(', ')}`,
+      );
+    }
     this.key = config.key;
     this.capabilities = new Set(config.capabilities);
   }
