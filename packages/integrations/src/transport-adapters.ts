@@ -6,7 +6,14 @@ import type {
   Page,
 } from './contract';
 import { ExternalBlockedError } from './contract';
-import { asString, mapExternalCase, mapExternalCaseItems, readPath, type CaseMapping } from './mapping';
+import {
+  asString,
+  mapExternalCase,
+  mapExternalCaseItems,
+  readPath,
+  sourceHash,
+  type CaseMapping,
+} from './mapping';
 import { idempotencyKey } from './idempotency';
 
 export interface FileEntry {
@@ -369,7 +376,7 @@ export class GenericInboundWebhookConnector implements Connector {
         operation: eventType,
         sourceVersion: mappingVersion,
       }),
-      sourceHash: (await import('./mapping')).sourceHash(request.body),
+      sourceHash: sourceHash(request.body),
       mappingVersion,
       payload: request.body,
     };
