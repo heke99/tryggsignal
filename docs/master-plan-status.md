@@ -1,6 +1,6 @@
 # Master Plan Status
 
-Last updated: 2026-09-08.
+Last updated: 2026-09-09.
 
 Status is evidence-based. A phase is only `GREEN` when its own implemented gate has passed.
 External credentials, production domains, vendor access, paid project creation and a real pilot are
@@ -76,10 +76,10 @@ EB-01/EB-02 remain.
 | P18 Digital Post / Identity         | EXTERNAL_BLOCKED | EB-05; Sweden Connect production access must not be fabricated.                                                                                                                                          |
 | P19 Geodata Enrichment              | IN_PROGRESS      | Spatial model/source registry exist; production adapter remains.                                                                                                                                         |
 | P20 AI Foundation                   | IN_PROGRESS      | Provider abstraction, prompt/run/finding/review and safety tests exist; real provider/DPA remains EB-07.                                                                                                 |
-| P21 Building Permit Workspace       | IN_PROGRESS      | Control tower/case workspace render through strict tenant data-plane binding; full operational case flow is Phase G.                                                                                     |
+| P21 Building Permit Workspace       | GREEN            | Phase G operational workspace is complete; Gate G runs one synthetic BYGGLOV from command-based creation through COMPLETE assessment, referral and accountable human decision.                           |
 | P22 Completeness Engine             | GREEN            | COMPLETE / INCOMPLETE / HUMAN_REVIEW with evidence is tested.                                                                                                                                            |
-| P23 PBL Supervision                 | IN_PROGRESS      | Schema/evidence model exists; complete supervision workflow remains.                                                                                                                                     |
-| P24 OVK                             | IN_PROGRESS      | Due-date recomputation is implemented and integration-tested; operational UI/flow remains.                                                                                                               |
+| P23 PBL Supervision                 | GREEN            | G9 operational supervision flow is integration-tested: risk, inspection, findings/evidence, actions, follow-up, close and isolation.                                                                     |
+| P24 OVK                             | GREEN            | G10 operational OVK flow is integration-tested: object/due state, CLEAN protocol evidence, findings, supervision linkage and isolation.                                                                  |
 | P25 Archive / FGS                   | IN_PROGRESS      | Retention/legal hold/package/export models exist; FGS writer/validation remains.                                                                                                                         |
 | P26 ROI / Analytics                 | IN_PROGRESS      | Operational metrics rollup exists and integration test is GREEN; production analytics surface remains.                                                                                                   |
 | P27 Legacy Edge Connector           | IN_PROGRESS      | .NET connector source exists but has not yet passed dotnet restore/build/tests.                                                                                                                          |
@@ -97,6 +97,23 @@ EB-01/EB-02 remain.
 | P39 Tenant Provisioning             | IN_PROGRESS      | State machine/branding provisioning tests are GREEN; automated Supabase/domain orchestrator and real second data plane remain.                                                                           |
 | P40 Domain / White-label Hardening  | IN_PROGRESS      | Existing domain/E2E matrix is GREEN, but P40 cannot be GREEN before P36-P39 and two-real-data-plane isolation are complete.                                                                              |
 
+## Phase G operational completion
+
+**Phase G is GREEN for the implemented product/runtime gates.** G1–G11 each pass their dedicated
+integration test in a clean disposable Supabase replay. The final Gate G additionally proves one
+synthetic `BYGGLOV` through the integrated command path:
+
+`create → assign → applicant → property → COMPLETE → workflow review → referral send/response → decision draft/review → authorized human approve/decide → final DECIDED workflow state`.
+
+After creation, the Gate G business flow does not directly mutate the operational case,
+case-party links, case-property links, completeness assessments, referrals, workflow state or
+decisions. Those transitions use the product command boundaries and their RLS/authz checks.
+
+This does **not** convert external blockers into green. In particular, real Sweden Connect
+production access, a production malware-scanner provider/worker deployment, physical multi-project
+tenant evidence and production domain/provider prerequisites remain tracked blockers for their
+later/global gates.
+
 ## Test suites
 
 | Suite                   | Command / file                                  | Verified scope                                                                               |
@@ -108,19 +125,18 @@ EB-01/EB-02 remain.
 | Worker                  | tests/integration/worker_runtime.sql            | Queue delivery, claim/idempotency/retry/heartbeat/dead-letter/run log.                       |
 | Branding / provisioning | tests/integration/branding_and_provisioning.sql | Publish/rollback, provisioning state machine and offboarding safeguards.                     |
 | Tenant runtime          | tests/integration/tenant_runtime.sql            | Exact hostname/deployment/project/auth isolation plus distributed rate limiter.              |
+| Gate G                  | tests/integration/gate_g_building_permit.sql    | Complete synthetic BYGGLOV from command-based creation to accountable human decision.        |
 | Release gate            | .github/workflows/release.yml                   | Source verification + migration replay + SQL matrices + Playwright before production deploy. |
 
 ## What is still required for MASTERPLAN V3 Global DoD
 
-The repository is not called complete just because CI and the release gate are green. The remaining
-ordered work is D → E → F → S → G → H → I → J → K → L → M → N → O → P → Q → T.
+The repository is not called complete just because Phase G, CI and the release gate are green. The corrected implementation sequence is complete through G. The next planned work begins at H, followed by I → J → K → L → M → N → O → P → Q → T.
 
 Global DoD still requires, among other things:
 
 - two municipality data planes operating simultaneously with zero cross-tenant route/session/cache/data leak;
 - production domain verification/TLS and a real custom-domain lifecycle;
 - tenant provisioning/orchestration and complete white-label runtime;
-- one complete case flow without direct SQL;
 - required generic adapters and a golden migration dataset;
 - at least one real national integration and one real/representative municipal connector;
 - real AI provider only after provider/DPA decision;

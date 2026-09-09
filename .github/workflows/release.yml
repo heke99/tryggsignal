@@ -110,6 +110,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/ovk.sql
       - name: G11 citizen portal integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/citizen_portal.sql
+      - name: Gate G complete building permit
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/gate_g_building_permit.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
