@@ -179,7 +179,7 @@ export class GenericSftpConnector implements Connector {
         format: config.format,
         caseMapping: config.caseMapping,
         capabilities: config.capabilities,
-        csvDelimiter: config.csvDelimiter,
+        ...(config.csvDelimiter === undefined ? {} : { csvDelimiter: config.csvDelimiter }),
       },
       source,
     );
