@@ -93,7 +93,7 @@ select
 from authz.roles r
 where r.key = 'building_case_worker';
 
-do $
+do $h_catalog$
 declare
   v_count integer;
 begin
@@ -141,7 +141,7 @@ begin
     raise exception 'SOAP/webhook catalog claims unsupported pull/write capabilities';
   end if;
 end;
-$;
+$h_catalog$;
 
 insert into h_ids
 select 'connector', c.id
