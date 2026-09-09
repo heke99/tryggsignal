@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { canonicalJson, readOwnDataPath } from '@tryggsignal/domain';
 import type { ExternalCase } from './contract';
 
 export interface CaseMapping {
@@ -15,20 +16,7 @@ export interface CaseMapping {
 
 /** Mapping paths only read own data, never an inherited prototype property. */
 export function readPath(payload: unknown, path: string): unknown {
-  let current = payload;
-  for (const segment of path.split('.')) {
-    if (
-      segment.length === 0 ||
-      ['__proto__', 'constructor', 'prototype'].includes(segment) ||
-      current === null ||
-      typeof current !== 'object' ||
-      !Object.prototype.hasOwnProperty.call(current, segment)
-    ) {
-      return undefined;
-    }
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return current;
+  return readOwnDataPath(payload, path);
 }
 
 export function asString(value: unknown): string | null {
@@ -38,59 +26,11 @@ export function asString(value: unknown): string | null {
   return null;
 }
 
-/** JSON-only canonical serialization, with locale-independent UTF-16 key order.
- * Do not silently drop undefined/functions or convert NaN to null: provenance
- * must describe precisely the payload that will be persisted as JSON.
- * This is the project's versioned JSON contract, not a claim of RFC 8785/JCS.
+/** Shared codec v1 preserves H hashes for valid JSON while migration uses the
+ * same deterministic representation, independent of JSONB object key order.
  */
-function canonicalJson(value: unknown, seen: Set<object>, depth: number): string {
-  if (depth > 100) throw new Error('Integration payload exceeds maximum nesting depth');
-  if (value === null) return 'null';
-  if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value);
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
-      throw new Error('Unsafe numeric integration value; encode large integers as strings');
-    }
-    return JSON.stringify(value);
-  }
-  if (typeof value !== 'object') {
-    throw new Error('Integration payload must contain only lossless JSON values');
-  }
-  if (seen.has(value)) throw new Error('Integration payload contains a cycle');
-  seen.add(value);
-  try {
-    if (Array.isArray(value)) {
-      const items: string[] = [];
-      for (let index = 0; index < value.length; index += 1) {
-        if (!Object.prototype.hasOwnProperty.call(value, index)) {
-          throw new Error('Integration payload contains a sparse array');
-        }
-        items.push(canonicalJson(value[index], seen, depth + 1));
-      }
-      return '[' + items.join(',') + ']';
-    }
-    const prototype: unknown = Object.getPrototypeOf(value);
-    if (prototype !== Object.prototype && prototype !== null) {
-      throw new Error('Integration payload must use plain JSON objects');
-    }
-    const record = value as Record<string, unknown>;
-    return (
-      '{' +
-      Object.keys(record)
-        .sort()
-        .map((key) => JSON.stringify(key) + ':' + canonicalJson(record[key], seen, depth + 1))
-        .join(',') +
-      '}'
-    );
-  } finally {
-    seen.delete(value);
-  }
-}
-
 export function sourceHash(payload: unknown): string {
-  return createHash('sha256')
-    .update(canonicalJson(payload, new Set(), 0))
-    .digest('hex');
+  return createHash('sha256').update(canonicalJson(payload)).digest('hex');
 }
 
 export function mapExternalCase(item: unknown, mapping: CaseMapping): ExternalCase | null {

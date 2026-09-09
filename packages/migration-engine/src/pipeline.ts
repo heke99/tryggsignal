@@ -1,11 +1,6 @@
-/**
- * Masterplan 54–59: the migration pipeline is a permanent product feature, not a
- * one-off script.
- *
- *   SOURCE → EXTRACT → RAW → PROFILE → MAP → VALIDATE → TRANSFORM → CANONICAL
- *          → RECONCILE → IMPORT → VERIFY
- */
+/** Permanent, versioned migration pipeline (masterplan 54–59). */
 import { createHash } from 'node:crypto';
+import { canonicalJson, readOwnDataPath, SOURCE_JSON_CODEC } from '@tryggsignal/domain';
 
 export const MIGRATION_STAGES = [
   'EXTRACT',
@@ -19,7 +14,6 @@ export const MIGRATION_STAGES = [
   'IMPORT',
   'VERIFY',
 ] as const;
-
 export type MigrationStage = (typeof MIGRATION_STAGES)[number];
 
 export const SUPPORTED_FORMATS = [
@@ -40,8 +34,8 @@ export const SUPPORTED_FORMATS = [
   'FGS',
   'SIARD',
 ] as const;
-
 export type MigrationFormat = (typeof SUPPORTED_FORMATS)[number];
+export type SourceHashVersion = 'json-stringify-v1' | typeof SOURCE_JSON_CODEC;
 
 export interface RawObject {
   readonly sourceSystem: string;
@@ -50,27 +44,82 @@ export interface RawObject {
   readonly sourcePrimaryKey: string;
   readonly rawPayload: unknown;
   readonly sourceHash: string;
+  /** Absent on historical captures: never silently reinterpret their hashes. */
+  readonly sourceHashVersion?: SourceHashVersion;
   readonly exportedAt: string | null;
 }
 
 export class IrreversibleTransformError extends Error {}
 
-/**
- * Masterplan 56: never transform before the original payload is stored. This is
- * the guard that makes that rule mechanical rather than a convention.
+function validateIdentity(input: Partial<RawObject>): void {
+  for (const value of [input.sourceSystem, input.sourceObject, input.sourcePrimaryKey]) {
+    if (typeof value !== 'string' || !value.trim() || value !== value.trim()) {
+      throw new IrreversibleTransformError('Raw source identity is incomplete or ambiguous');
+    }
+  }
+  if (input.sourceVersion !== null && typeof input.sourceVersion !== 'string') {
+    throw new IrreversibleTransformError('Raw source version is invalid');
+  }
+  if (
+    input.exportedAt !== null &&
+    (typeof input.exportedAt !== 'string' || !Number.isFinite(Date.parse(input.exportedAt)))
+  ) {
+    throw new IrreversibleTransformError('Raw export timestamp is invalid');
+  }
+}
+
+function freezeJson(value: unknown): unknown {
+  if (value !== null && typeof value === 'object') {
+    for (const child of Object.values(value)) freezeJson(child);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+/** Own a detached, immutable JSON snapshot before transformation. The database
+ * still has to persist it; this helper alone is not evidence of durable storage.
  */
-export function captureRaw(input: Omit<RawObject, 'sourceHash'>): RawObject {
-  const sourceHash = createHash('sha256')
-    .update(JSON.stringify(input.rawPayload ?? null))
-    .digest('hex');
-  return { ...input, sourceHash };
+export function captureRaw(input: Omit<RawObject, 'sourceHash' | 'sourceHashVersion'>): RawObject {
+  validateIdentity(input);
+  const encoded = canonicalJson(input.rawPayload);
+  const rawPayload: unknown = JSON.parse(encoded);
+  return Object.freeze({
+    ...input,
+    rawPayload: freezeJson(rawPayload),
+    sourceHash: createHash('sha256').update(encoded).digest('hex'),
+    sourceHashVersion: SOURCE_JSON_CODEC,
+  });
 }
 
 export function assertRawCaptured(object: Partial<RawObject> | null): asserts object is RawObject {
-  if (object === null || object.sourceHash === undefined || object.rawPayload === undefined) {
-    throw new IrreversibleTransformError(
-      'Refusing to transform: the original payload has not been captured (masterplan 56).',
-    );
+  if (
+    object == null ||
+    typeof object.sourceHash !== 'string' ||
+    !/^[a-f0-9]{64}$/.test(object.sourceHash) ||
+    object.rawPayload === undefined
+  ) {
+    throw new IrreversibleTransformError('Refusing to transform: original raw evidence is missing');
+  }
+  validateIdentity(object);
+  let encoded: string;
+  try {
+    const canonical = canonicalJson(object.rawPayload);
+    switch (object.sourceHashVersion ?? 'json-stringify-v1') {
+      case 'canonical-json-v1':
+        encoded = canonical;
+        break;
+      case 'json-stringify-v1':
+        // Legacy compatibility is verification, never automatic hash repair.
+        encoded = JSON.stringify(object.rawPayload);
+        break;
+      default:
+        throw new Error('Unknown raw hash codec');
+    }
+  } catch {
+    throw new IrreversibleTransformError('Raw payload or source hash codec is invalid');
+  }
+  if (createHash('sha256').update(encoded).digest('hex') !== object.sourceHash) {
+    throw new IrreversibleTransformError('Raw payload no longer matches its captured checksum');
   }
 }
 
@@ -82,17 +131,14 @@ export type MappingRule =
       readonly from: string;
       readonly to: string;
       readonly table: Readonly<Record<string, string>>;
-      /** Unmapped values are reported, never silently defaulted. */
       readonly onMissing: 'ERROR' | 'PASSTHROUGH';
     };
-
 export interface MappingVersion {
   readonly mappingKey: string;
   readonly version: number;
   readonly entityType: string;
   readonly rules: readonly MappingRule[];
 }
-
 export interface MappedObject {
   readonly canonical: Record<string, unknown>;
   readonly errors: readonly {
@@ -103,56 +149,90 @@ export interface MappedObject {
   readonly mappingVersion: number;
 }
 
-function read(payload: unknown, path: string): unknown {
-  let current = payload;
-  for (const segment of path.split('.')) {
-    if (current === null || typeof current !== 'object') return undefined;
-    current = (current as Record<string, unknown>)[segment];
-  }
-  return current;
-}
+const RESERVED_TARGETS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  'source_system',
+  'source_record_id',
+  'source_version',
+  'migration_mapping_version',
+]);
 
 export function applyMapping(raw: RawObject, mapping: MappingVersion): MappedObject {
   assertRawCaptured(raw);
-
+  if (
+    !Number.isSafeInteger(mapping.version) ||
+    mapping.version < 1 ||
+    !mapping.mappingKey.trim() ||
+    !mapping.entityType.trim()
+  ) {
+    throw new Error('Mapping requires a stable key, entity type and positive integer version');
+  }
   const canonical: Record<string, unknown> = {};
   const errors: { field: string; code: string; message: string }[] = [];
-
+  const targets = new Set<string>();
+  const assign = (target: string, value: unknown): void => {
+    // Detached values prevent mapped output from mutating source evidence.
+    canonical[target] = JSON.parse(canonicalJson(value)) as unknown;
+  };
   for (const rule of mapping.rules) {
+    if (
+      !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(rule.to) ||
+      RESERVED_TARGETS.has(rule.to) ||
+      targets.has(rule.to)
+    ) {
+      throw new Error('Mapping contains an unsafe, reserved or duplicate target');
+    }
+    targets.add(rule.to);
     switch (rule.kind) {
       case 'constant':
-        canonical[rule.to] = rule.value;
+        assign(rule.to, rule.value);
         break;
-      case 'copy':
-        canonical[rule.to] = read(raw.rawPayload, rule.from);
+      case 'copy': {
+        const value = readOwnDataPath(raw.rawPayload, rule.from);
+        if (value === undefined) {
+          errors.push({
+            field: rule.to,
+            code: 'MISSING_SOURCE_VALUE',
+            message: 'Source field missing',
+          });
+        } else {
+          assign(rule.to, value);
+        }
         break;
+      }
       case 'lookup': {
-        const source = read(raw.rawPayload, rule.from);
+        if (rule.onMissing !== 'ERROR' && rule.onMissing !== 'PASSTHROUGH') {
+          throw new Error('Unknown missing-value policy');
+        }
+        const source = readOwnDataPath(raw.rawPayload, rule.from);
         const key = typeof source === 'string' ? source : String(source ?? '');
-        const mapped = rule.table[key];
-        if (mapped === undefined) {
-          if (rule.onMissing === 'ERROR') {
+        const descriptor = Object.getOwnPropertyDescriptor(rule.table, key);
+        const mapped: unknown =
+          descriptor !== undefined && 'value' in descriptor ? descriptor.value : undefined;
+        if (typeof mapped !== 'string') {
+          if (rule.onMissing === 'ERROR' || source === undefined) {
             errors.push({
               field: rule.to,
               code: 'UNMAPPED_VALUE',
               message: `No mapping for "${key}" in ${mapping.mappingKey} v${mapping.version}`,
             });
           } else {
-            canonical[rule.to] = source;
+            assign(rule.to, source);
           }
         } else {
-          canonical[rule.to] = mapped;
+          assign(rule.to, mapped);
         }
         break;
       }
+      default:
+        throw new Error('Unknown mapping rule kind');
     }
   }
-
-  // Provenance travels with the record (masterplan 22).
   canonical['source_system'] = raw.sourceSystem;
   canonical['source_record_id'] = raw.sourcePrimaryKey;
   canonical['source_version'] = raw.sourceVersion;
   canonical['migration_mapping_version'] = mapping.version;
-
   return { canonical, errors, mappingVersion: mapping.version };
 }
