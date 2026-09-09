@@ -113,6 +113,7 @@ This does **not** convert external blockers into green. In particular, real Swed
 production access, a production malware-scanner provider/worker deployment, physical multi-project
 tenant evidence and production domain/provider prerequisites remain tracked blockers for their
 later/global gates.
+
 ## Test suites
 
 | Suite                   | Command / file                                  | Verified scope                                                                               |
@@ -124,7 +125,7 @@ later/global gates.
 | Worker                  | tests/integration/worker_runtime.sql            | Queue delivery, claim/idempotency/retry/heartbeat/dead-letter/run log.                       |
 | Branding / provisioning | tests/integration/branding_and_provisioning.sql | Publish/rollback, provisioning state machine and offboarding safeguards.                     |
 | Tenant runtime          | tests/integration/tenant_runtime.sql            | Exact hostname/deployment/project/auth isolation plus distributed rate limiter.              |
-| Gate G                  | tests/integration/gate_g_building_permit.sql     | Complete synthetic BYGGLOV from command-based creation to accountable human decision.        |
+| Gate G                  | tests/integration/gate_g_building_permit.sql    | Complete synthetic BYGGLOV from command-based creation to accountable human decision.        |
 | Release gate            | .github/workflows/release.yml                   | Source verification + migration replay + SQL matrices + Playwright before production deploy. |
 
 ## What is still required for MASTERPLAN V3 Global DoD
