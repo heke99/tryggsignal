@@ -11,18 +11,56 @@ permissions:
 jobs:
   source-snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Export tracked source only
-        shell: bash
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.0.0'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Generate forward migration filename using CLI
         run: |
           mkdir -p artifacts
-          git rev-parse HEAD > artifacts/commit.txt
+          supabase --version > artifacts/supabase-version.txt
+          supabase migration new --help > artifacts/migration-help.txt
+          supabase migration new migration_scope_integrity
+          find supabase/migrations -name '*_migration_scope_integrity.sql' -exec cp {} artifacts/ \;
+      - name: Export pinned verification tools without runtime secrets
+        run: |
+          tar -czf artifacts/verification-tools.tgz node_modules
           git archive --format=tar --output=artifacts/source.tar HEAD
-          sha256sum artifacts/source.tar > artifacts/source.sha256
+          git rev-parse HEAD > artifacts/commit.txt
+      - name: Resolve existing Supabase project identity (read only)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+          const result = { supabaseTokenConfigured: Boolean(process.env.SUPABASE_ACCESS_TOKEN), vercelTokenConfigured: Boolean(process.env.VERCEL_TOKEN), projects: [], status: 'NO_CONFIGURED_MANAGEMENT_TOKEN' };
+          if (process.env.SUPABASE_ACCESS_TOKEN) {
+            try {
+              const response = await fetch('https://api.supabase.com/v1/projects', { headers: { Authorization: `Bearer ${process.env.SUPABASE_ACCESS_TOKEN}` }, signal: AbortSignal.timeout(20000) });
+              result.status = `HTTP_${response.status}`;
+              if (response.ok) {
+                const projects = await response.json();
+                if (Array.isArray(projects)) result.projects = projects.filter(p => typeof p.name === 'string' && /^tryggsignal(?:[- _].*)?$/i.test(p.name)).map(p => ({ id: p.id, name: p.name, region: p.region, status: p.status }));
+              }
+            } catch { result.status = 'REQUEST_FAILED'; }
+          }
+          writeFileSync('artifacts/project-identity.json', JSON.stringify(result, null, 2));
+          console.log(`Identity check: ${result.status}; matching Tryggsignal projects: ${result.projects.length}`);
+          NODE
       - uses: actions/upload-artifact@v4
         with:
           name: ht-source-${{ github.sha }}
