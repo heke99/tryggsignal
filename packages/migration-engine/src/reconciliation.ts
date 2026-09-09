@@ -34,6 +34,15 @@ export interface ReconciliationReport {
 }
 
 export function reconcile(input: ReconciliationInput): ReconciliationReport {
+  const inputCounts = [
+    input.sourceCaseCount,
+    input.targetCaseCount,
+    input.sourceDocumentCount,
+    input.targetDocumentCount,
+  ];
+  if (inputCounts.some((count) => !Number.isSafeInteger(count) || count < 0)) {
+    throw new Error('Migration reconciliation counts must be nonnegative safe integers');
+  }
   const caseDelta = input.targetCaseCount - input.sourceCaseCount;
   const documentDelta = input.targetDocumentCount - input.sourceDocumentCount;
 

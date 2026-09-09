@@ -233,9 +233,9 @@ describe('H inbound canonical acknowledgement', () => {
 describe('H unambiguous event identity and CSV record boundaries', () => {
   it('frames event identity so separators cannot alias distinct inputs', () => {
     expect(
-      inboundEventKey({ connectorInstanceId: 'one', externalEventId: 'a|b', eventType: 'c' }),
+      inboundEventKey({ connectorInstanceId: 'one', externalEventId: 'a|b', eventType: 'cd' }),
     ).not.toBe(
-      inboundEventKey({ connectorInstanceId: 'one', externalEventId: 'a', eventType: 'b|c' }),
+      inboundEventKey({ connectorInstanceId: 'one', externalEventId: 'a', eventType: 'b|cd' }),
     );
     expect(
       inboundEventKey({

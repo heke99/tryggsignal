@@ -73,9 +73,10 @@ jobs:
           service_role_key="$(printf '%s\n' "$status" | sed -n 's/^SERVICE_ROLE_KEY=//p' | tr -d '"')"
           if [ -z "$db_url" ] || [ -z "$api_url" ] || [ -z "$service_role_key" ]; then
             echo "Could not resolve local Supabase runtime credentials" >&2
-            printf '%s\n' "$status" >&2
             exit 1
           fi
+          echo "::add-mask::$db_url"
+          echo "::add-mask::$service_role_key"
           echo "DB_URL=$db_url" >> "$GITHUB_ENV"
           echo "CONTROL_PLANE_SUPABASE_URL=$api_url" >> "$GITHUB_ENV"
           echo "CONTROL_PLANE_SECRET_REFERENCE=local/service-role" >> "$GITHUB_ENV"
@@ -116,6 +117,8 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_adapters.sql
       - name: H schema canonical RPC and index consistency
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/integration_consistency.sql
+      - name: H exact scope and RPC catalog contract
+        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/h_catalog_contract.sql
       - name: Branding and provisioning integration
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/branding_and_provisioning.sql
       - name: Custom domain integration
@@ -130,6 +133,23 @@ jobs:
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/worker_runtime.sql
       - name: Tenant runtime isolation matrix
         run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/tenant_runtime.sql
+      - name: Read-only database consistency inventory
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          {
+            echo "Scope: disposable clean replay; not the hosted production database"
+            echo "Checked commit: $(git rev-parse HEAD)"
+            psql "$DB_URL" -X -v ON_ERROR_STOP=1 -f scripts/db-consistency-audit.sql
+          } | tee artifacts/db-consistency-audit.txt
+      - name: Retain database inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-consistency-${{ github.run_id }}
+          path: artifacts/db-consistency-audit.txt
+          retention-days: 7
+          if-no-files-found: warn
       - name: Stop disposable Supabase stack
         if: always()
         run: supabase stop --no-backup
