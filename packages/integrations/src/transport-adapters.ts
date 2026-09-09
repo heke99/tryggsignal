@@ -1,3 +1,4 @@
+import { posix as path } from 'node:path';
 import type { Connector, ConnectorCapability, ExternalCase, HealthStatus, Page } from './contract';
 import { ExternalBlockedError } from './contract';
 import {
