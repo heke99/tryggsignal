@@ -111,6 +111,7 @@ $$;
 revoke all on function audit.record_service(
   text, text, uuid, uuid, text, text, uuid, text, text
 ) from public, anon, authenticated;
+grant usage on schema audit, integration to service_role;
 grant execute on function audit.record_service(
   text, text, uuid, uuid, text, text, uuid, text, text
 ) to service_role;
@@ -251,16 +252,24 @@ declare
   v_result text;
   v_id uuid;
 begin
-  if least(
-    p_source_count,
-    p_tracked_count,
-    p_unchanged_count,
-    p_new_count,
-    p_changed_count,
-    p_missing_internal_count,
-    p_missing_source_count,
-    p_duplicate_source_count
-  ) < 0 then
+  if p_source_count is null
+     or p_tracked_count is null
+     or p_unchanged_count is null
+     or p_new_count is null
+     or p_changed_count is null
+     or p_missing_internal_count is null
+     or p_missing_source_count is null
+     or p_duplicate_source_count is null
+     or least(
+       p_source_count,
+       p_tracked_count,
+       p_unchanged_count,
+       p_new_count,
+       p_changed_count,
+       p_missing_internal_count,
+       p_missing_source_count,
+       p_duplicate_source_count
+     ) < 0 then
     raise exception 'Reconciliation counts cannot be negative'
       using errcode = 'check_violation';
   end if;
