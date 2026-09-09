@@ -34,3 +34,30 @@ export function decideDelivery(existing: DeliveryRecord | null): DeliveryDecisio
   if (existing.status === 'PROCESSED' || existing.status === 'DUPLICATE') return 'SKIP_DUPLICATE';
   return 'RETRY';
 }
+
+/** H receipt identity uses a framed JSON tuple; a separator in a source
+ * identifier cannot alias another event. Existing legacy write keys above
+ * deliberately retain their format, so this change cannot replay old writes.
+ * The prefix is the receipt-key codec version, not a mapping release.
+ */
+export function inboundEventKey(parts: {
+  readonly connectorInstanceId: string;
+  readonly externalEventId: string;
+  readonly eventType: string;
+}): string {
+  const values = [parts.connectorInstanceId, parts.externalEventId, parts.eventType];
+  const limits = [500, 500, 200];
+  if (
+    values.some(
+      (value, index) =>
+        !value.trim() ||
+        value !== value.trim() ||
+        value.length > (limits[index] ?? 0) ||
+        /[\u0000-\u001f\u007f]/.test(value),
+    )
+  ) {
+    throw new Error('Inbound event identity contains invalid values');
+  }
+  const encoded = JSON.stringify(['tryggsignal-inbound-event/v1', ...values]);
+  return 'event:v1:' + createHash('sha256').update(encoded).digest('hex');
+}

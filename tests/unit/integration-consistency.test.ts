@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  GenericFileConnector,
   GenericInboundWebhookConnector,
+  inboundEventKey,
   GenericSqlReadConnector,
   mapExternalCase,
   mapExternalCaseItems,
@@ -225,5 +227,53 @@ describe('H inbound canonical acknowledgement', () => {
       ),
     ).rejects.toThrow(/valid/);
     expect(statements).toEqual([]);
+  });
+});
+
+describe('H unambiguous event identity and CSV record boundaries', () => {
+  it('frames event identity so separators cannot alias distinct inputs', () => {
+    expect(
+      inboundEventKey({ connectorInstanceId: 'one', externalEventId: 'a|b', eventType: 'c' }),
+    ).not.toBe(
+      inboundEventKey({ connectorInstanceId: 'one', externalEventId: 'a', eventType: 'b|c' }),
+    );
+    expect(
+      inboundEventKey({
+        connectorInstanceId: 'one',
+        externalEventId: 'event',
+        eventType: 'changed',
+      }),
+    ).toMatch(/^event:v1:[a-f0-9]{64}$/);
+  });
+  it('rejects identities that the database would trim into another identity', () => {
+    expect(() =>
+      inboundEventKey({
+        connectorInstanceId: 'one',
+        externalEventId: 'event ',
+        eventType: 'changed',
+      }),
+    ).toThrow(/identity/);
+  });
+  function csv(text: string) {
+    return new GenericFileConnector(
+      { key: 'csv', format: 'CSV', caseMapping: mapping, capabilities: ['listCases'] },
+      {
+        healthCheck: vi.fn(),
+        list: async () => ({ items: [{ path: 'fixture.csv' }], nextCursor: null }),
+        read: async () => text,
+      },
+    );
+  }
+  it('preserves CRLF, delimiters and escaped quotes inside a quoted field', async () => {
+    const adapter = csv('id,number,title,status\r\n1,C-1,"Line one\r\nLine ""two"", end",OPEN\r\n');
+    const result = await adapter.listCases(null);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.title).toBe('Line one\r\nLine "two", end');
+  });
+  it.each([
+    'id,number,title,status\n1,C-1,"never closed,OPEN',
+    'id,number,title,status\n1,C-1,"closed"junk,OPEN',
+  ])('rejects malformed CSV rather than changing data: %s', async (text) => {
+    await expect(csv(text).listCases(null)).rejects.toThrow(/CSV/);
   });
 });

@@ -271,3 +271,37 @@ revoke all on function integration.record_reconciliation(uuid,integer,integer,in
   from public, anon, authenticated;
 grant execute on function integration.record_reconciliation(uuid,integer,integer,integer,integer,integer,integer,integer,integer,jsonb)
   to service_role;
+
+-- Receipt content is immutable even beneath the service RPC. Retry/duplicate
+-- metadata may change; replay cannot rewrite source evidence in place.
+create or replace function integration.guard_receipt_content()
+returns trigger language plpgsql security invoker set search_path = '' as $receipt_guard$
+begin
+  if row(new.id, new.connector_instance_id, new.authority_id, new.external_event_id,
+         new.event_type, new.idempotency_key, new.payload, new.source_hash,
+         new.mapping_version, new.received_at)
+     is distinct from
+     row(old.id, old.connector_instance_id, old.authority_id, old.external_event_id,
+         old.event_type, old.idempotency_key, old.payload, old.source_hash,
+         old.mapping_version, old.received_at) then
+    raise exception 'Received integration evidence is immutable' using errcode = 'check_violation';
+  end if;
+  return new;
+end;
+$receipt_guard$;
+revoke all on function integration.guard_receipt_content() from public, anon, authenticated;
+create trigger integration_receipt_content_immutable
+  before update on integration.integration_events
+  for each row execute function integration.guard_receipt_content();
+
+create or replace function integration.guard_reconciliation_history()
+returns trigger language plpgsql security invoker set search_path = '' as $reconciliation_guard$
+begin
+  raise exception 'Reconciliation history is append-only; record a new run'
+    using errcode = 'check_violation';
+end;
+$reconciliation_guard$;
+revoke all on function integration.guard_reconciliation_history() from public, anon, authenticated;
+create trigger integration_reconciliation_no_update
+  before update on integration.reconciliation_runs
+  for each row execute function integration.guard_reconciliation_history();

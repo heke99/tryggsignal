@@ -55,3 +55,9 @@ All counters are nonnegative, non-null integers. `GREEN` is possible only when a
 ## Rollout and verification
 
 The H migration remains unmerged while this review is in progress. Composite FKs validate pre-existing rows; inconsistent historical scopes block rollout instead of being repaired by guessing, deleted, or left `NOT VALID`. No production database is modified by these repository changes. Re-run the full clean Supabase replay, previous G gates, H gate, consistency gate, source verification and Playwright on the exact PR head before merge.
+
+## Immutable receipt and history
+
+Incoming H webhooks use a version-tagged JSON tuple event key (`event:v1:`), not separator-concatenated identifiers. Mapping version is separate provenance, never a new logical event identity. Existing legacy write-key generation is unchanged for backwards compatibility. A trigger prevents in-place modification of receipt identity, scope, original payload, hash, mapping version and receipt timestamp; retries may only update operational metadata. Reconciliation updates are rejected: each new result is a new historical run. Retention/deletion remains a separate privileged policy, not a client operation.
+
+Signature verifiers receive optional unmodified `rawBody` bytes. A provider that signs raw HTTP bytes must require that buffer and reject its absence; reserializing parsed JSON is not equivalent. No live provider signature contract is invented here. The CSV adapter preserves quoted multiline records and escaped quotes, and rejects malformed quoting rather than shifting row boundaries.

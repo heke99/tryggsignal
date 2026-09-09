@@ -153,6 +153,17 @@ begin
 end;
 $receipts$;
 
+-- Direct privileged writes must not corrupt immutable receipt evidence.
+do $immutability$
+declare v_instance uuid := (select id from hq_ids where key='instance');
+begin
+  perform pg_temp.hq_reject(format(
+    'update integration.integration_events set payload=''{}'' where connector_instance_id=%L', v_instance),'23514');
+  perform pg_temp.hq_reject(format(
+    'update integration.integration_events set mapping_version=''replaced'' where connector_instance_id=%L', v_instance),'23514');
+end;
+$immutability$;
+
 -- Same validation in RPC and table: no impossible GREEN or negative/subset counts.
 do $counts$
 declare v_instance uuid := (select id from hq_ids where key='instance');

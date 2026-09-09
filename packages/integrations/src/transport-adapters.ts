@@ -2,7 +2,7 @@ import { posix as path } from 'node:path';
 import type { Connector, ConnectorCapability, ExternalCase, HealthStatus, Page } from './contract';
 import { assertCapability, ExternalBlockedError } from './contract';
 import { asString, mapExternalCaseItems, readPath, sourceHash, type CaseMapping } from './mapping';
-import { idempotencyKey } from './idempotency';
+import { inboundEventKey } from './idempotency';
 
 export interface FileEntry {
   readonly path: string;
@@ -37,53 +37,69 @@ function decode(input: string | Uint8Array): string {
     : new TextDecoder('utf-8', { fatal: true }).decode(input);
 }
 
-function parseCsvLine(line: string, delimiter: string): readonly string[] {
-  const values: string[] = [];
-  let value = '';
+function parseCsv(text: string, delimiter: string): readonly Record<string, string>[] {
+  if (delimiter.length !== 1 || ['"', '\r', '\n'].includes(delimiter)) {
+    throw new Error('CSV delimiter must be one non-quote, non-newline character');
+  }
+  const input = text.replace(/^\uFEFF/, '');
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
   let quoted = false;
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index];
-    if (character === '"') {
-      if (quoted && line[index + 1] === '"') {
-        value += '"';
-        index += 1;
+  let afterQuote = false;
+  let rowStarted = false;
+  const finishField = (): void => {
+    row.push(field);
+    field = '';
+    afterQuote = false;
+  };
+  const finishRow = (): void => {
+    if (!rowStarted && row.length === 0 && field.length === 0) return;
+    finishField();
+    rows.push(row);
+    row = [];
+    rowStarted = false;
+  };
+  for (let index = 0; index < input.length; index += 1) {
+    const character = input[index] ?? '';
+    if (quoted) {
+      if (character === '"') {
+        if (input[index + 1] === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          quoted = false;
+          afterQuote = true;
+        }
       } else {
-        quoted = !quoted;
+        field += character;
       }
       continue;
     }
-    if (character === delimiter && !quoted) {
-      values.push(value);
-      value = '';
-      continue;
+    if (character === delimiter) {
+      rowStarted = true;
+      finishField();
+    } else if (character === '\r' || character === '\n') {
+      finishRow();
+      if (character === '\r' && input[index + 1] === '\n') index += 1;
+    } else if (character === '"' && field.length === 0 && !afterQuote) {
+      rowStarted = true;
+      quoted = true;
+    } else {
+      if (afterQuote || character === '"') throw new Error('CSV contains invalid quoting');
+      rowStarted = true;
+      field += character;
     }
-    value += character;
   }
-
   if (quoted) throw new Error('CSV contains an unterminated quoted field');
-  values.push(value);
-  return values;
-}
-
-function parseCsv(text: string, delimiter: string): readonly Record<string, string>[] {
-  if (delimiter.length !== 1) throw new Error('CSV delimiter must be exactly one character');
-  const lines = text
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .filter((line) => line.trim().length > 0);
-  if (lines.length === 0) return [];
-
-  const headers = parseCsvLine(lines[0] ?? '', delimiter).map((header) => header.trim());
-  if (headers.some((header) => header.length === 0))
-    throw new Error('CSV contains an empty header');
+  finishRow();
+  const headers = rows.shift()?.map((header) => header.trim());
+  if (headers === undefined) return [];
+  if (headers.some((header) => !header)) throw new Error('CSV contains an empty header');
   if (new Set(headers).size !== headers.length) throw new Error('CSV contains duplicate headers');
-
-  return lines.slice(1).map((line) => {
-    const values = parseCsvLine(line, delimiter);
-    if (values.length !== headers.length) {
+  return rows.map((values) => {
+    if (values.length !== headers.length)
       throw new Error('CSV row column count does not match the header');
-    }
     return Object.fromEntries(headers.map((header, index) => [header, values[index] ?? '']));
   });
 }
@@ -349,6 +365,10 @@ export class GenericSoapConnectorSlot implements Connector {
 export interface WebhookRequest {
   readonly headers: Readonly<Record<string, string | undefined>>;
   readonly body: unknown;
+  /** Unmodified HTTP bytes for source-specific signature verification.
+   * A byte-signature verifier must reject requests where this is absent.
+   */
+  readonly rawBody?: Uint8Array;
 }
 
 export interface WebhookEvent {
@@ -417,13 +437,7 @@ export class GenericInboundWebhookConnector implements Connector {
     return {
       externalEventId,
       eventType,
-      idempotencyKey: idempotencyKey({
-        connectorInstanceId,
-        entityType: 'event',
-        externalId: externalEventId,
-        operation: eventType,
-        sourceVersion: null, // Mapping release is not logical event identity.
-      }),
+      idempotencyKey: inboundEventKey({ connectorInstanceId, externalEventId, eventType }),
       sourceHash: sourceHash(request.body),
       mappingVersion,
       payload: request.body,
