@@ -271,6 +271,7 @@ export interface CaseDocument {
   readonly information_class: string;
   readonly secrecy_level: number;
   readonly current_version: number;
+  readonly portal_visible: boolean;
   readonly versions: readonly CaseDocumentVersion[];
 }
 
@@ -282,6 +283,7 @@ interface CaseDocumentRow {
   readonly information_class: string;
   readonly secrecy_level: number;
   readonly current_version: number;
+  readonly portal_visible: boolean;
 }
 
 export interface CaseWorkspace {
@@ -373,7 +375,7 @@ export async function loadCaseWorkspace(
       .schema('documents')
       .from('documents')
       .select(
-        'id, title, description, document_type, information_class, secrecy_level, current_version',
+        'id, title, description, document_type, information_class, secrecy_level, current_version, portal_visible',
       )
       .eq('case_id', caseId)
       .order('created_at', { ascending: false })

@@ -35,6 +35,34 @@ export async function requireTenantSession(
   await authenticatedTenantClient(context, returnTo);
 }
 
+export async function requireTenantUserType(
+  context: TenantContext,
+  expectedUserType: 'STAFF' | 'EXTERNAL',
+  returnTo: string,
+): Promise<void> {
+  const client = await authenticatedTenantClient(context, returnTo);
+  const { data: actorId, error: actorError } = await client.schema('authz').rpc('current_user_id');
+
+  if (actorError !== null || typeof actorId !== 'string' || actorId.length === 0) {
+    redirect('/login?error=session');
+  }
+
+  const { data: actor, error: userError } = await client
+    .schema('identity')
+    .from('users')
+    .select('user_type, status')
+    .eq('id', actorId)
+    .maybeSingle<{ user_type: string; status: string }>();
+
+  if (userError !== null || actor === null || actor.status !== 'ACTIVE') {
+    redirect('/login?error=session');
+  }
+
+  if (actor.user_type !== expectedUserType) {
+    redirect(actor.user_type === 'EXTERNAL' ? '/mina-sidor' : '/handlaggning');
+  }
+}
+
 /**
  * Tenant-level administration is authorized in the municipality data plane,
  * using the user's validated JWT and RBAC. A signed-in session by itself is not

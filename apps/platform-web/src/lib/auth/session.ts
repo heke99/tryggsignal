@@ -9,6 +9,7 @@ import {
   refreshSessionCookie,
   sessionCookie,
   verifySignInState,
+  type AudienceKind,
 } from '@tryggsignal/identity';
 import { tenantCookieName, type TenantContext } from '@tryggsignal/tenancy';
 import {
@@ -53,14 +54,17 @@ function authClient(target: { url: string; publishableKey: string }): SupabaseCl
   });
 }
 
-async function requirePasswordRuntime(context: TenantContext): Promise<{
+async function requirePasswordRuntime(
+  context: TenantContext,
+  audience: AudienceKind,
+): Promise<{
   readonly url: string;
   readonly publishableKey: string;
 }> {
   try {
     const [deployment, configuration] = await Promise.all([
       resolveTenantRuntime(context),
-      resolveTenantAuthConfiguration(context, 'STAFF'),
+      resolveTenantAuthConfiguration(context, audience),
     ]);
 
     if (configuration.kind !== 'SUPABASE_PASSWORD') {
@@ -78,15 +82,24 @@ async function requirePasswordRuntime(context: TenantContext): Promise<{
   }
 }
 
-async function internalUserIsActive(client: SupabaseClient, authUserId: string): Promise<boolean> {
+async function internalUserIsActive(
+  client: SupabaseClient,
+  authUserId: string,
+  expectedUserType?: 'STAFF' | 'EXTERNAL',
+): Promise<boolean> {
   const { data, error } = await client
     .schema('identity')
     .from('users')
-    .select('id, status')
+    .select('id, status, user_type')
     .eq('auth_user_id', authUserId)
-    .maybeSingle<{ id: string; status: string }>();
+    .maybeSingle<{ id: string; status: string; user_type: string }>();
 
-  return error === null && data !== null && data.status === 'ACTIVE';
+  return (
+    error === null &&
+    data !== null &&
+    data.status === 'ACTIVE' &&
+    (expectedUserType === undefined || data.user_type === expectedUserType)
+  );
 }
 
 async function clientAddress(): Promise<string> {
@@ -133,6 +146,7 @@ export async function signInWithPassword(
   context: TenantContext,
   email: string,
   password: string,
+  audience: AudienceKind = 'STAFF',
 ): Promise<void> {
   let rateLimit;
   try {
@@ -143,7 +157,7 @@ export async function signInWithPassword(
   }
   if (!rateLimit.allowed) throw new RateLimitRejectedError(rateLimit.resetAt);
 
-  const target = await requirePasswordRuntime(context);
+  const target = await requirePasswordRuntime(context, audience);
   const client = authClient(target);
 
   const { data, error } = await client.auth.signInWithPassword({ email, password });
@@ -156,10 +170,18 @@ export async function signInWithPassword(
     global: { headers: { Authorization: `Bearer ${data.session.access_token}` } },
   });
 
-  if (!(await internalUserIsActive(authed, data.user.id))) {
+  if (
+    !(await internalUserIsActive(
+      authed,
+      data.user.id,
+      audience === 'EXTERNAL' ? 'EXTERNAL' : 'STAFF',
+    ))
+  ) {
     await client.auth.signOut({ scope: 'local' });
     throw new SignInRejectedError(
-      'Kontot är inte upplagt för den här kommunen. Kontakta din administratör.',
+      audience === 'EXTERNAL'
+        ? 'Kontot är inte upplagt för Mina sidor i den här kommunen.'
+        : 'Kontot är inte upplagt för den här kommunen. Kontakta din administratör.',
     );
   }
 

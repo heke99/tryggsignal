@@ -20,6 +20,7 @@ export default async function TenantLogin({
   const tenant = await currentTenant();
   const params = await searchParams;
   const returnTo = safeReturnTo(params.returnTo);
+  const audience = returnTo.startsWith('/mina-sidor') ? 'EXTERNAL' : 'STAFF';
 
   let state: string | null = null;
   let configurationError: string | null = null;
@@ -47,7 +48,8 @@ export default async function TenantLogin({
     }
 
     try {
-      await signInWithPassword(context, email, password);
+      const submittedAudience = target.startsWith('/mina-sidor') ? 'EXTERNAL' : 'STAFF';
+      await signInWithPassword(context, email, password, submittedAudience);
     } catch (error) {
       if (error instanceof RateLimitRejectedError) {
         redirect('/login?error=rate-limit');
@@ -79,10 +81,11 @@ export default async function TenantLogin({
 
   return (
     <main id="innehall">
-      <h1>Logga in</h1>
+      <h1>{audience === 'EXTERNAL' ? 'Logga in till Mina sidor' : 'Logga in'}</h1>
       <p className="meta">
-        Inloggning sker mot {tenant.tenantSlug}s konfigurerade identitetsleverantör. Sessionen är
-        bunden till {tenant.resolvedHostname} och följer inte med till någon annan kommun.
+        Inloggning sker mot {tenant.tenantSlug}s konfigurerade{' '}
+        {audience === 'EXTERNAL' ? 'externa' : 'personalspecifika'} identitetsleverantör. Sessionen
+        är bunden till {tenant.resolvedHostname} och följer inte med till någon annan kommun.
       </p>
 
       {errorText !== null && (

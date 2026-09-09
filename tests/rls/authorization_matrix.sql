@@ -124,14 +124,16 @@ select (select v from t_ids where k = 'case_MX-0001'), p.id,
        (select v from t_ids where k = 'applicant'), now()
 from core.parties p where p.display_name = 'Sokande Matrix';
 
-insert into documents.documents (authority_id, case_id, document_type, title, information_class)
+insert into documents.documents (
+  authority_id, case_id, document_type, title, information_class, created_by
+)
 values
   ((select v from t_ids where k = 'auth_mx_bygg'), (select v from t_ids where k = 'case_MX-0001'),
-   'ANSOKAN', 'Ansokan MX-0001', 'INTERNAL'),
+   'ANSOKAN', 'Ansokan MX-0001', 'INTERNAL', (select v from t_ids where k = 'applicant')),
   ((select v from t_ids where k = 'auth_mx_bygg'), (select v from t_ids where k = 'case_MX-0001'),
-   'INTERNT_PM', 'Sekretess PM', 'SECRET'),
+   'INTERNT_PM', 'Sekretess PM', 'SECRET', (select v from t_ids where k = 'senior')),
   ((select v from t_ids where k = 'auth_mx_miljo'), (select v from t_ids where k = 'case_MX-0003'),
-   'ANSOKAN', 'Ansokan MX-0003', 'INTERNAL');
+   'ANSOKAN', 'Ansokan MX-0003', 'INTERNAL', (select v from t_ids where k = 'other_auth'));
 
 -- The search index is maintained by the trigger on core.cases, so the fixtures
 -- above have already been indexed. Asserting on it here proves the trigger and
