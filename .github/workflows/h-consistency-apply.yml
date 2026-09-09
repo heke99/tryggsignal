@@ -1,0 +1,125 @@
+name: H reviewed consistency patch
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'feat/h-generic-integration-adapters'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/h-generic-integration-adapters
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Apply reviewed exact-match patches
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def patch(file, old, new):
+              p = Path(file)
+              content = p.read_text()
+              if content.count(old) != 1:
+                  raise SystemExit(f'Expected exactly one patch anchor in {file}: {old[:80]!r}')
+              p.write_text(content.replace(old, new, 1))
+          transport = 'packages/integrations/src/transport-adapters.ts'
+          rest = 'packages/integrations/src/adapters.ts'
+          tests = 'tests/unit/integrations.test.ts'
+          for f in [transport, rest]:
+              patch(f, "import { ExternalBlockedError } from './contract';", "import { assertCapability, ExternalBlockedError } from './contract';")
+          patch(transport, '  mapExternalCase,\n', '')
+          patch(transport,
+              '    this.pageSize = Math.min(Math.max(config.pageSize ?? 100, 1), 1000);',
+              '''    const pageSize = config.pageSize ?? 100;
+              if (!Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 1000) {
+                throw new Error('SQL page size must be an integer between 1 and 1000');
+              }
+              if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(config.caseMapping.externalId) || config.caseMapping.itemsPath !== undefined) {
+                throw new Error('SQL mapping requires a flat external-ID column alias and flat result rows');
+              }
+              this.pageSize = pageSize;''')
+          patch(transport,
+              '    const offset = cursor === null ? 0 : Number.parseInt(cursor, 10);',
+              '''    assertCapability(this, 'listCases');
+              if (cursor !== null && !/^(0|[1-9][0-9]*)$/.test(cursor)) {
+                throw new Error('Invalid SQL read cursor');
+              }
+              const offset = cursor === null ? 0 : Number(cursor);''')
+          patch(transport,
+              '`select * from (${this.select}) as tryggsignal_source limit $1 offset $2`',
+              '`select * from (${this.select}) as tryggsignal_source order by tryggsignal_source."${this.mapping.externalId}" limit $1 offset $2`')
+          patch(transport,
+              '''    const items = rows.flatMap((row) => {
+                const mapped = mapExternalCase(row, this.mapping);
+                return mapped === null ? [] : [mapped];
+              });''',
+              '''    if (rows.length > this.pageSize || !Number.isSafeInteger(offset + rows.length)) {
+                throw new Error('SQL source returned an invalid page boundary');
+              }
+              const items = mapExternalCaseItems(rows, this.mapping);''')
+          patch(transport,
+              '    const page = await this.source.list(cursor);',
+              "    assertCapability(this, 'listCases');\n    const page = await this.source.list(cursor);")
+          patch(transport, '        sourceVersion: mappingVersion,',
+              '        sourceVersion: null, // Mapping release is not logical event identity.')
+          patch(transport,
+              '    if (externalEventId === null || eventType === null) {',
+              '    if (externalEventId === null || eventType === null || !externalEventId.trim() || !eventType.trim() || !connectorInstanceId.trim()) {')
+          patch(transport, "    const mappingVersion = this.config.mappingVersion ?? '1';",
+              '''    const mappingVersion = this.config.mappingVersion ?? '1';
+              if (!mappingVersion.trim() || mappingVersion !== mappingVersion.trim() || mappingVersion.length > 100) {
+                throw new Error('Webhook mapping version is invalid');
+              }''')
+          patch(rest, '    const url = new URL(`${this.config.baseUrl}/cases`);',
+              "    assertCapability(this, 'listCases');\n    const url = new URL(`${this.config.baseUrl}/cases`);")
+          patch(rest, '    if (response.status >= 400) {', '    if (response.status < 200 || response.status >= 300) {')
+          patch(rest,
+              '  async setStatus(externalId: string, status: string, key: string): Promise<WriteResult> {',
+              '''  async setStatus(externalId: string, status: string, key: string): Promise<WriteResult> {
+              assertCapability(this, 'setStatus');
+              if (!externalId.trim() || !status.trim() || !key.trim()) {
+                throw new Error('Status write requires stable identity, status and idempotency key');
+              }''')
+          patch(rest, '    if (response.status >= 400 && response.status !== 409) {',
+              '    if (response.status < 200 || response.status >= 300) {')
+          patch(rest,
+              '''    // 409 from a target that honours the idempotency key means "already applied".
+              return { externalId, idempotencyKey: key, deduplicated: response.status === 409 };''',
+              '''    // Only a verified source contract can establish a successful replay.
+              return { externalId, idempotencyKey: key, deduplicated: false };''')
+          patch(tests, "it('drops records without a stable external id instead of inventing one'", "it('rejects pages with missing stable identities instead of silently skipping records'")
+          patch(tests, '    const page = await connector(http).listCases(null);\n    expect(page.items).toEqual([]);',
+              '    await expect(connector(http).listCases(null)).rejects.toThrow(/stable identity/);')
+          patch(tests, "it('treats a 409 on a keyed write as an already-applied write'", "it('does not mistake an unverified HTTP 409 for a successful replay'")
+          patch(tests,
+              "    const result = await connector(http).setStatus('1', 'CLOSED', 'key-1');\n    expect(result).toMatchObject({ deduplicated: true, idempotencyKey: 'key-1' });",
+              "    await expect(connector(http).setStatus('1', 'CLOSED', 'key-1')).rejects.toThrow(/HTTP 409/);")
+          patch('.github/workflows/release.yml',
+              '      - name: H generic integration adapters\n        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_adapters.sql\n',
+              '      - name: H generic integration adapters\n        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/generic_integration_adapters.sql\n      - name: H schema canonical RPC and index consistency\n        run: psql "$DB_URL" -v ON_ERROR_STOP=1 -f tests/integration/integration_consistency.sql\n')
+          p = Path('docs/integrations/connector-contract.md')
+          p.write_text(p.read_text() + '\n## Consistency contract\n\nSee `data-contracts.md` for per-table ownership, composite authority constraints, index coverage, strict canonical hashing, RPC validation and the distinction between receipt and canonical application.\n')
+          PY
+      - run: pnpm install --frozen-lockfile
+      - name: Format only reviewed changes
+        run: |
+          pnpm exec prettier --write packages/integrations/src/*.ts services/worker/src/handlers/integration-inbound.ts tests/unit/integration*.test.ts docs/integrations/data-contracts.md docs/integrations/connector-contract.md .github/workflows/release.yml .github/workflows/h-consistency-apply.yml
+          git diff --check
+      - name: Commit reviewed changes to this PR only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add packages/integrations/src services/worker/src/handlers/integration-inbound.ts tests/unit/integration-consistency.test.ts tests/unit/integrations.test.ts docs/integrations/data-contracts.md docs/integrations/connector-contract.md .github/workflows/release.yml .github/workflows/h-consistency-apply.yml
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix(h): apply reviewed consistency contract and formatting'
+            git push origin HEAD:feat/h-generic-integration-adapters
+          fi
