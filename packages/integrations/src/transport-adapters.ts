@@ -160,6 +160,16 @@ export interface GenericSftpConnectorConfig extends Omit<GenericFileConnectorCon
   readonly remoteDirectory: string;
 }
 
+function assertRemotePath(remoteDirectory: string, candidate: string): string {
+  const base = path.normalize('/' + remoteDirectory.replace(/^\/+/, '')).replace(/\/$/, '') || '/';
+  const normalized = path.normalize('/' + candidate.replace(/^\/+/, ''));
+  const allowed = base === '/' ? normalized.startsWith('/') : normalized === base || normalized.startsWith(base + '/');
+  if (!allowed) {
+    throw new Error('SFTP source returned a path outside the configured remote directory');
+  }
+  return normalized;
+}
+
 export class GenericSftpConnector implements Connector {
   readonly key: string;
   readonly capabilities: ReadonlySet<ConnectorCapability>;
@@ -170,8 +180,17 @@ export class GenericSftpConnector implements Connector {
     this.capabilities = new Set(config.capabilities);
     const source: FileSource = {
       healthCheck: () => client.healthCheck(),
-      list: (cursor) => client.list(config.remoteDirectory, cursor),
-      read: (path) => client.read(path),
+      list: async (cursor) => {
+        const page = await client.list(config.remoteDirectory, cursor);
+        return {
+          ...page,
+          items: page.items.map((entry) => ({
+            ...entry,
+            path: assertRemotePath(config.remoteDirectory, entry.path),
+          })),
+        };
+      },
+      read: (remotePath) => client.read(assertRemotePath(config.remoteDirectory, remotePath)),
     };
     this.fileConnector = new GenericFileConnector(
       {
